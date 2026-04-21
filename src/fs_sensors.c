@@ -159,7 +159,7 @@ Error FS_Sensors_Init(void) {
   // Wait for nvidia module
   for (; slept < sleep_time; ++slept) {
     Nvidia_Error ne = Nvidia_Init();
-    if (ne == Nvidia_Error_DlOpen)
+    if (ne == Nvidia_Error_DlOpen || ne == Nvidia_Error_DriverNotLoaded)
       break;
 
     if (ne == Nvidia_Error_API) {

@@ -1,5 +1,7 @@
 #include "nvidia.h"
 
+#include "file_utils.h"
+
 #include <dlfcn.h>
 
 // ============================================================================
@@ -23,6 +25,12 @@ nvmlReturn_t (*Nvidia_nvmlInit_fn)(void);
 nvmlReturn_t (*Nvidia_nvmlShutdown_fn)(void);
 nvmlReturn_t (*Nvidia_nvmlDeviceGetHandleByIndex_fn)(unsigned int, nvmlDevice_t*);
 nvmlReturn_t (*Nvidia_nvmlDeviceGetTemperature_fn)(nvmlDevice_t, unsigned int, unsigned int*);
+
+static bool Nvidia_DriverLoaded(void) {
+  return
+    file_exists("/sys/module/nvidia") ||
+    file_exists("/proc/driver/nvidia/version");
+}
 
 // ============================================================================
 // Nvidia_* Functions
@@ -51,6 +59,9 @@ Nvidia_Error Nvidia_Init(void) {
   Nvidia_nvmlDeviceGetTemperature_fn = (nvmlReturn_t (*)(nvmlDevice_t, unsigned int, unsigned int *)) dlsym(Nvidia_DlHandle, "nvmlDeviceGetTemperature");
   if (!Nvidia_nvmlDeviceGetTemperature_fn)
     return Nvidia_Error_DlOpen;
+
+  if (! Nvidia_DriverLoaded())
+    return Nvidia_Error_DriverNotLoaded;
 
   if (Nvidia_nvmlInit_fn() != NVML_SUCCESS)
     return Nvidia_Error_API;
