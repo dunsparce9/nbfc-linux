@@ -230,15 +230,20 @@ static array_of(ConfigWithData) RateConfig_RateConfigs(
       continue;
     }
 
-    // Set the filename
-    config_with_data->file = Mem_Strdup(file->config_name);
-
     // Rate the config
-    ConfigRating_RateModelConfig(
+    e = ConfigRating_RateModelConfig(
       config_rating,
       &config_with_data->model_config,
       &config_with_data->rating
     );
+    if (e) {
+      Log_Warn("%s: %s", path, err_print_all(e));
+      ModelConfig_Free(&config_with_data->model_config);
+      continue;
+    }
+
+    // Set the filename
+    config_with_data->file = Mem_Strdup(file->config_name);
 
     result.size++;
   }
@@ -389,7 +394,7 @@ static void RateConfig_PrintResultsJson(
     RateConfig_AddJsonResult(array, results, group_id);
   }
 
-  nxjson_write_to_fd(array, STDOUT_FILENO);
+  nxjson_write_to_fd(array, STDOUT_FILENO, 2);
 
 #if STRICT_CLEANUP
   nx_json_free(array);
@@ -514,7 +519,7 @@ static int RateConfig_PrintRules(const char* rules_json, bool json) {
 
   if (json) {
     js = ConfigRatingRules_ToJson(&rules);
-    nxjson_write_to_fd(js, STDOUT_FILENO);
+    nxjson_write_to_fd(js, STDOUT_FILENO, 2);
   }
   else {
     ConfigRatingRules_Print(&rules);

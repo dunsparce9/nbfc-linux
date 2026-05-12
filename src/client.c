@@ -19,9 +19,12 @@
 #include "parse_double.h"
 #include "client/client_global.h"
 
+#include "acpi_call.c"
 #include "buffer.c"
 #include "log.c"
+#include "lua_bindings.c"
 #include "error.c"
+#include "ec.h"
 #include "file_utils.c"
 #include "model_config.c"
 #include "fs_sensors.c"
@@ -39,14 +42,19 @@
 #include "mkdir_p.c"
 #include "regex_utils.c"
 #include "acpi_analysis.c"
+#include "config_analysis.c"
 #include "config_rating.c"
 #include "config_rating_rules.c"
 #include "model_config_utils.c"
+#include "model_config_to_json.c"
+#include "xml2json.c"
 #include "client/dmi.c"
 #include "client/curl_utils.c"
 #include "client/config_files.c"
 #include "client/str_functions.c"
 #include "client/service_control.c"
+
+const EC_VTable* ec = NULL;
 
 const struct cli99_Option main_options[] = {
   {"-h|--help",     Option_Help,       cli99_NoArgument      },
@@ -71,6 +79,7 @@ const struct cli99_Option main_options[] = {
 #include "client/cmd_support.c"
 #include "client/cmd_acpi_dump.c"
 #include "client/cmd_rate_config.c"
+#include "client/cmd_xml2json.c"
 
 #define NBFC_CLIENT_COMMANDS \
   o("set",              Set,              SET,              set)           \
@@ -88,6 +97,7 @@ const struct cli99_Option main_options[] = {
   o("complete-fans",    Complete_Fans,    COMPLETE_FANS,    main)          \
   o("complete-sensors", Complete_Sensors, COMPLETE_SENSORS, main)          \
   o("show-variable",    Show_Variable,    SHOW_VARIABLE,    show_variable) \
+  o("xml2json",         Xml2Json,         XML2JSON,         xml2json)      \
   o("warranty",         Warranty,         WARRANTY,         main)          \
   o("donate",           Donate,           SUPPORT,          main)          \
   o("support",          Support,          SUPPORT,          support)       \
@@ -450,6 +460,14 @@ int main(int argc, char *const argv[]) {
       break;
 
     // ========================================================================
+    // Xml2Json options
+    // ========================================================================
+
+    case Option_Xml2Json_File:
+      Xml2Json_Options.file = p.optarg;
+      break;
+
+    // ========================================================================
     // Error
     // ========================================================================
 
@@ -478,6 +496,7 @@ int main(int argc, char *const argv[]) {
   case Command_Warranty:          return Warranty();
   case Command_Donate:            return Support();
   case Command_Support:           return Support();
+  case Command_Xml2Json:          return Xml2Json();
   default:                        return NBFC_EXIT_FAILURE;
   }
 }

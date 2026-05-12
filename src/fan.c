@@ -94,6 +94,15 @@ static Error Fan_ECWriteValue(Fan* self, uint16_t value) {
       return err_success();
   }
 
+  if (my.fanConfig->WriteLuaCode.function) {
+    uint64_t out;
+    Error e = Lua_Call(my.fanConfig->WriteLuaCode.function, value, &out);
+    if (e)
+      return err_chain_string(e, "WriteLuaCode");
+    else
+      return err_success();
+  }
+
   if (my.readWriteWords)
     return ec->WriteWord(my.fanConfig->WriteRegister, value);
   else
@@ -108,6 +117,16 @@ static Error Fan_ECReadValue(const Fan* self, uint16_t* out) {
     e = AcpiCall_Call(my.fanConfig->ReadAcpiMethod, 0, &val);
     if (e)
       return err_chain_string(e, "ReadAcpiMethod");
+    else
+      *out = val;
+    return e;
+  }
+
+  if (my.fanConfig->ReadLuaCode.function) {
+    uint64_t val;
+    e = Lua_Call(my.fanConfig->ReadLuaCode.function, 0, &val);
+    if (e)
+      return err_chain_string(e, "ReadLuaCode");
     else
       *out = val;
     return e;
@@ -215,6 +234,15 @@ Error Fan_ECReset(Fan* self) {
     Error e = AcpiCall_Call(my.fanConfig->ResetAcpiMethod, 0, &out);
     if (e)
       return err_chain_string(e, "ResetAcpiMethod");
+    else
+      return err_success();
+  }
+
+  if (my.fanConfig->ResetLuaCode.function) {
+    uint64_t out;
+    Error e = Lua_Call(my.fanConfig->ResetLuaCode.function, 0, &out);
+    if (e)
+      return err_chain_string(e, "ResetLuaCode");
     else
       return err_success();
   }
