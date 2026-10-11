@@ -226,6 +226,10 @@ static void FanConfiguration_ToJson(const FanConfiguration* cfg, nx_json* parent
     create_json_string("TemperatureAlgorithmType", obj, str);
   }
 
+  if (FanConfiguration_IsSet_TemperatureFilterTimespan(cfg)) {
+    create_json_integer("TemperatureFilterTimespan", obj, cfg->TemperatureFilterTimespan);
+  }
+
   if (FanConfiguration_IsSet_Sensors(cfg)) {
     nx_json* array = create_json_array("Sensors", obj);
     for_each_array(str*, sensor, cfg->Sensors)

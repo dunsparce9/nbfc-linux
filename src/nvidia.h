@@ -3,6 +3,8 @@
 
 #include "error.h"
 
+#include <stdbool.h>
+
 enum Nvidia_Error {
   Nvidia_Error_OK     = 0,
   Nvidia_Error_DlOpen = -1,
@@ -11,7 +13,9 @@ enum Nvidia_Error {
 typedef enum Nvidia_Error Nvidia_Error;
 
 Nvidia_Error Nvidia_Init(void);
+Nvidia_Error Nvidia_Load(void);
 void         Nvidia_Close(void);
-Error        Nvidia_GetTemperature(float*);
+Error        Nvidia_GetTemperature(const char*, float*);
+bool         Nvidia_IsRuntimeSuspended(const char*);
 
 #endif

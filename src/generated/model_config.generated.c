@@ -268,6 +268,11 @@ Error FanConfiguration_ValidateFields(FanConfiguration* self) {
 	if (false)
 		return err_stringf("%s: %s", "TemperatureAlgorithmType", "Missing option");
 
+	if (! FanConfiguration_IsSet_TemperatureFilterTimespan(self))
+		self->TemperatureFilterTimespan = 6000;
+	else if (! (self->TemperatureFilterTimespan > 0 && self->TemperatureFilterTimespan <= 60000))
+		return err_stringf("%s: %s", "TemperatureFilterTimespan", "requires: 0 < parameter <= 60000");
+
 	if (false)
 		return err_stringf("%s: %s", "Sensors", "Missing option");
 
@@ -373,6 +378,11 @@ Error FanConfiguration_FromJson(FanConfiguration* obj, const nx_json* json) {
 			e = TemperatureAlgorithmType_FromJson(&obj->TemperatureAlgorithmType, c);
 			if (!e)
 				FanConfiguration_Set_TemperatureAlgorithmType(obj);
+		}
+		else if (!strcmp(c->key, "TemperatureFilterTimespan")) {
+			e = uint16_t_FromJson(&obj->TemperatureFilterTimespan, c);
+			if (!e)
+				FanConfiguration_Set_TemperatureFilterTimespan(obj);
 		}
 		else if (!strcmp(c->key, "Sensors")) {
 			e = array_of_str_FromJson(&obj->Sensors, c);

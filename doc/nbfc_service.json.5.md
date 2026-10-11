@@ -281,6 +281,13 @@ Defines how NBFC controls a fan.
 > -   **Max**: Selects the highest temperature among all specified
 >     sensors
 
+**TemperatureFilterTimespan**: *Integer* > 0 && *Integer* <= 60000
+
+> Moving-average window in milliseconds, per fan (default: 6000).
+> Any readable sensor at or above **CriticalTemperature** bypasses smoothing
+> and sensor averaging. This permits a slower normal ramp without delaying
+> the response to critical heat.
+
 **TemperatureThresholds**: *Array of TemperatureThreshold*
 
 > Defines how fast the fan runs at different temperatures.

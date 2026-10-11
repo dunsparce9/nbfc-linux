@@ -24,6 +24,7 @@ Error FS_Sensors_Init(void);
 void  FS_Sensors_Cleanup(void);
 void  FS_Sensors_Log(void);
 Error FS_TemperatureSource_GetTemperature(FS_TemperatureSource*, float*);
+bool  FS_TemperatureSource_ShouldLogReadError(FS_TemperatureSource*);
 
 extern array_of(FS_TemperatureSource) FS_Sensors_Sources;
 

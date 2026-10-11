@@ -1,6 +1,13 @@
 #include "nvidia.h"
 
+#include "file_utils.h"
+
+#include <dirent.h>
 #include <dlfcn.h>
+#include <linux/limits.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 // ============================================================================
 // Type definitions and constants for accessing NVIDIA GPU information via libnvidia-ml
@@ -18,6 +25,7 @@ typedef int nvmlReturn_t;
 
 static void *Nvidia_DlHandle = NULL;
 static nvmlDevice_t Nvidia_Device;
+static bool Nvidia_Initialized = false;
 
 nvmlReturn_t (*Nvidia_nvmlInit_fn)(void);
 nvmlReturn_t (*Nvidia_nvmlShutdown_fn)(void);
@@ -28,7 +36,7 @@ nvmlReturn_t (*Nvidia_nvmlDeviceGetTemperature_fn)(nvmlDevice_t, unsigned int, u
 // Nvidia_* Functions
 // ============================================================================
 
-Nvidia_Error Nvidia_Init(void) {
+Nvidia_Error Nvidia_Load(void) {
   if (! Nvidia_DlHandle) {
     Nvidia_DlHandle = dlopen("libnvidia-ml.so.1", RTLD_LAZY);
 
@@ -52,6 +60,17 @@ Nvidia_Error Nvidia_Init(void) {
   if (!Nvidia_nvmlDeviceGetTemperature_fn)
     return Nvidia_Error_DlOpen;
 
+  return Nvidia_Error_OK;
+}
+
+Nvidia_Error Nvidia_Init(void) {
+  Nvidia_Error e = Nvidia_Load();
+  if (e)
+    return e;
+
+  if (Nvidia_Initialized)
+    return Nvidia_Error_OK;
+
   if (Nvidia_nvmlInit_fn() != NVML_SUCCESS)
     return Nvidia_Error_API;
 
@@ -62,11 +81,12 @@ Nvidia_Error Nvidia_Init(void) {
   if (Nvidia_nvmlDeviceGetTemperature_fn(Nvidia_Device, NVML_TEMPERATURE_GPU, &temp) != NVML_SUCCESS)
     return Nvidia_Error_API;
 
+  Nvidia_Initialized = true;
   return Nvidia_Error_OK;
 }
 
 void Nvidia_Close(void) {
-  if (Nvidia_nvmlShutdown_fn)
+  if (Nvidia_Initialized && Nvidia_nvmlShutdown_fn)
     Nvidia_nvmlShutdown_fn();
 
   if (Nvidia_DlHandle)
@@ -74,15 +94,39 @@ void Nvidia_Close(void) {
 
   Nvidia_DlHandle = NULL;
   Nvidia_nvmlShutdown_fn = NULL;
+  Nvidia_Initialized = false;
 }
 
-Error Nvidia_GetTemperature(float* out) {
-  unsigned int temp; // NOLINT
+bool Nvidia_IsRuntimeSuspended(const char* runtime_status_file) {
+  if (! runtime_status_file || ! strcmp(runtime_status_file, "none"))
+    return false;
 
-  if (Nvidia_nvmlDeviceGetTemperature_fn(Nvidia_Device, NVML_TEMPERATURE_GPU, &temp) == NVML_SUCCESS)
+  char buf[32];
+  file_op_result res = slurp_file(buf, sizeof(buf), runtime_status_file);
+  return res.ok && ! strncmp(buf, "suspended", 9);
+}
+
+Error Nvidia_GetTemperature(const char* runtime_status_file, float* out) {
+  unsigned int temp; // NOLINT
+  Nvidia_Error e;
+
+  if (Nvidia_IsRuntimeSuspended(runtime_status_file))
+    return err_string("nvidia-ml: GPU runtime-suspended");
+
+  e = Nvidia_Init();
+  if (e == Nvidia_Error_DlOpen)
+    return err_string("nvidia-ml: Failed to load NVML");
+  if (e == Nvidia_Error_API)
+    return err_string("nvidia-ml: Failed to initialize NVML");
+
+  if (Nvidia_nvmlDeviceGetTemperature_fn(Nvidia_Device, NVML_TEMPERATURE_GPU, &temp) == NVML_SUCCESS) {
     *out = (float) temp;
-  else
+    Nvidia_Close();
+  }
+  else {
+    Nvidia_Close();
     return err_string("nvidia-ml: Failed to get temperature");
+  }
 
   return err_success();
 }

@@ -4,6 +4,7 @@
 #include "memory.h"
 
 #include <float.h>
+#include <stdio.h>
 #include <string.h>
 
 static inline int IsCPUSensorName(const char* s) {
@@ -22,7 +23,7 @@ static inline int IsGPUSensorName(const char* s) {
     !strcmp(s, "radeon");
 }
 
-static Error FanTemperatureControl_GetTemperature(FanTemperatureControl* ftc, float* out) {
+static Error FanTemperatureControl_GetTemperature(FanTemperatureControl* ftc, float* out, float* hottest) {
   float tmp;
   float sum = 0;
   float min = FLT_MAX;
@@ -32,7 +33,8 @@ static Error FanTemperatureControl_GetTemperature(FanTemperatureControl* ftc, fl
   for (int i = 0; i < ftc->TemperatureSourcesSize; ++i) {
     FS_TemperatureSource* ts = ftc->TemperatureSources[i];
     Error e = FS_TemperatureSource_GetTemperature(ts, &tmp);
-    e_warn();
+    if (FS_TemperatureSource_ShouldLogReadError(ts))
+      e_warn();
     if (! e) {
       min = MIN(min, tmp);
       max = MAX(max, tmp);
@@ -43,6 +45,8 @@ static Error FanTemperatureControl_GetTemperature(FanTemperatureControl* ftc, fl
 
   if (! total)
     return err_string("No temperatures available");
+
+  *hottest = max;
 
   switch (ftc->TemperatureAlgorithmType) {
     case TemperatureAlgorithmType_Average:
@@ -178,6 +182,29 @@ static Error FanTemperatureControl_AddTemperatureSources(
   return e;
 }
 
+static Error FanTemperatureControl_SetTemperatureSources(
+  FanTemperatureControl* ftc,
+  array_of(str)* sensors,
+  const char* context)
+{
+  Error e;
+
+  ftc->TemperatureSourcesSize = 0;
+
+  for_each_array(const char**, sensor, *sensors) {
+    e = FanTemperatureControl_AddTemperatureSources(ftc, *sensor);
+    if (e) {
+      Log_Warn("Skipping unavailable temperature source \"%s\" for %s: %s", *sensor, context, err_print_all(e));
+      continue;
+    }
+  }
+
+  if (! ftc->TemperatureSourcesSize)
+    return err_chain_stringf(0, "%s: No temperature sources available", context);
+
+  return err_success();
+}
+
 // Set default sensors for FanTemperatureControls.
 // That means:
 //   - Use "Average" as TemperatureAlgorithmType
@@ -203,9 +230,11 @@ static Error FanTemperatureControl_SetDefaults(array_of(FanTemperatureControl)* 
 
 static Error FanTemperatureControl_SetByModelConfig0(
   FanTemperatureControl* ftc,
-  FanConfiguration* fc)
+  FanConfiguration* fc,
+  array_size_t fan_index)
 {
   Error e;
+  char context[256];
 
   if (FanConfiguration_IsSet_TemperatureAlgorithmType(fc))
     ftc->TemperatureAlgorithmType = fc->TemperatureAlgorithmType;
@@ -214,16 +243,9 @@ static Error FanTemperatureControl_SetByModelConfig0(
   if (! fc->Sensors.size)
     return err_success();
 
-  // Override sensors
-  ftc->TemperatureSourcesSize = 0;
-
-  for_each_array(const char**, sensor, fc->Sensors) {
-    e = FanTemperatureControl_AddTemperatureSources(ftc, *sensor);
-    if (e)
-      return e;
-  }
-
-  return err_success();
+  snprintf(context, sizeof(context), "FanConfigurations[%zd] (%s)", fan_index, fc->FanDisplayName);
+  e = FanTemperatureControl_SetTemperatureSources(ftc, &fc->Sensors, context);
+  return e;
 }
 
 // Set fan temperature sources by model config
@@ -237,9 +259,9 @@ static Error FanTemperatureControl_SetByModelConfig(
     FanTemperatureControl* ftc = &fans->data[fan_index];
     FanConfiguration* fc = &model_config->FanConfigurations.data[fan_index];
 
-    e = FanTemperatureControl_SetByModelConfig0(ftc, fc);
+    e = FanTemperatureControl_SetByModelConfig0(ftc, fc, fan_index);
     if (e)
-      return err_chain_stringf(e, "FanConfigurations[%zd] (%s)", fan_index, fc->FanDisplayName);
+      return e;
   }
 
   return err_success();
@@ -265,14 +287,11 @@ static Error FanTemperatureControl_SetByServiceConfig(
     if (! ftsc->Sensors.size)
       continue;
 
-    // Override sensors
-    ftc->TemperatureSourcesSize = 0;
-
-    for_each_array(const char**, sensor, ftsc->Sensors) {
-      e = FanTemperatureControl_AddTemperatureSources(ftc, *sensor);
-      if (e)
-        return err_chain_stringf(e, "FanTemperatureSources[%d]", ftsc->FanIndex);
-    }
+    char context[64];
+    snprintf(context, sizeof(context), "FanTemperatureSources[%d]", ftsc->FanIndex);
+    e = FanTemperatureControl_SetTemperatureSources(ftc, &ftsc->Sensors, context);
+    if (e)
+      return e;
   }
 
   return err_success();
@@ -281,14 +300,17 @@ static Error FanTemperatureControl_SetByServiceConfig(
 // Initialize temperature filters in `fans`
 static Error FanTemperatureControl_InitializeTemperatureFilters(
   array_of(FanTemperatureControl)* fans,
-  unsigned int poll_interval)
+  ModelConfig* model_config)
 {
   Error e;
 
-  for_each_array(FanTemperatureControl*, ftc, *fans) {
-    e = TemperatureFilter_Init(&ftc->TemperatureFilter, poll_interval, NBFC_TEMPERATURE_FILTER_TIMESPAN);
+  for_enumerate_array(array_size_t, i, *fans) {
+    FanTemperatureControl* ftc = &fans->data[i];
+    unsigned int timespan = model_config->FanConfigurations.data[i].TemperatureFilterTimespan;
+    e = TemperatureFilter_Init(&ftc->TemperatureFilter, model_config->EcPollInterval, timespan);
     if (e)
       return e;
+    Log_Info("Fan #%zd temperature smoothing window: %u ms", i, timespan);
   }
 
   return err_success();
@@ -318,7 +340,7 @@ Error FanTemperatureControl_Init(
     return e;
 
   // Initialize the temperature filters
-  e = FanTemperatureControl_InitializeTemperatureFilters(fans, model_config->EcPollInterval);
+  e = FanTemperatureControl_InitializeTemperatureFilters(fans, model_config);
   if (e)
     return e;
 
@@ -327,11 +349,15 @@ Error FanTemperatureControl_Init(
 
 Error FanTemperatureControl_UpdateFanTemperature(FanTemperatureControl* ftc) {
   float temp; // NOLINT
-  Error e = FanTemperatureControl_GetTemperature(ftc, &temp);
+  float hottest; // NOLINT
+  Error e = FanTemperatureControl_GetTemperature(ftc, &temp, &hottest);
   if (e)
     return e;
 
   ftc->Temperature = TemperatureFilter_FilterTemperature(&ftc->TemperatureFilter, temp);
+  // Do not let averaging across sensors or over time hide critical heat.
+  if (hottest >= ftc->Fan.criticalTemperature)
+    ftc->Temperature = MAX(ftc->Temperature, hottest);
   return err_success();
 }
 

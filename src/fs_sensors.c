@@ -7,9 +7,11 @@
 #include "sleep.h"
 #include "nvidia.h"
 
+#include <dirent.h>
 #include <errno.h>   // ENODATA, EINVAL
 #include <stdio.h>   // snprintf
 #include <stdlib.h>  // strtod
+#include <string.h>  // memcpy, strncmp
 #include <linux/limits.h> // PATH_MAX
 
 static const char* const LinuxHwmonDirs[] = {
@@ -31,7 +33,7 @@ Error FS_TemperatureSource_GetTemperature(FS_TemperatureSource* self, float* out
     res = slurp_file(buf, sizeof(buf), my.file);
   }
   else if (self->type == FS_TemperatureSource_Nvidia) {
-    return Nvidia_GetTemperature(out);
+    return Nvidia_GetTemperature(my.file, out);
   }
   else {
     FILE* fh = popen(my.file, "r");
@@ -61,6 +63,10 @@ Error FS_TemperatureSource_GetTemperature(FS_TemperatureSource* self, float* out
     return err_chain_stdlib(err_string(buf), my.file);
 
   return err_success();
+}
+
+bool FS_TemperatureSource_ShouldLogReadError(FS_TemperatureSource* self) {
+  return self->type != FS_TemperatureSource_Nvidia;
 }
 
 #define FS_SENSORS_MAX_SOURCES 256
@@ -142,6 +148,31 @@ void FS_Sensors_Log(void) {
     Log_Info("Available temperature source: \"%s\" (%s)", source->name, source->file);
 }
 
+static void FS_Sensors_AddNvidia(void) {
+  DIR* dir = opendir("/sys/module/nvidia/drivers/pci:nvidia");
+  if (! dir)
+    return;
+
+  struct dirent* ent;
+  while ((ent = readdir(dir))) {
+    if (strncmp(ent->d_name, "0000:", 5))
+      continue;
+
+    char file[PATH_MAX];
+    snprintf(file, sizeof(file), "/sys/bus/pci/devices/%s/power/runtime_status", ent->d_name);
+
+    const array_size_t idx = FS_Sensors_Sources.size;
+    FS_Sensors_Sources.data = Mem_Realloc(FS_Sensors_Sources.data, (idx + 1) * sizeof(FS_TemperatureSource));
+    FS_Sensors_Sources.data[idx].name = Mem_Strdup("nvidia-ml");
+    FS_Sensors_Sources.data[idx].file = Mem_Strdup(file);
+    FS_Sensors_Sources.data[idx].multiplier = 1;
+    FS_Sensors_Sources.data[idx].type = FS_TemperatureSource_Nvidia;
+    FS_Sensors_Sources.size = idx + 1;
+  }
+
+  closedir(dir);
+}
+
 Error FS_Sensors_Init(void) {
   Error e;
   int slept;
@@ -156,27 +187,8 @@ Error FS_Sensors_Init(void) {
     sleep_ms(1000);
   }
 
-  // Wait for nvidia module
-  for (; slept < sleep_time; ++slept) {
-    Nvidia_Error ne = Nvidia_Init();
-    if (ne == Nvidia_Error_DlOpen)
-      break;
-
-    if (ne == Nvidia_Error_API) {
-      Log_Info("Waiting for nvidia sensor ...");
-      sleep_ms(1000);
-      continue;
-    }
-
-    const array_size_t idx = FS_Sensors_Sources.size;
-    FS_Sensors_Sources.data = Mem_Realloc(FS_Sensors_Sources.data, (idx + 1) * sizeof(FS_TemperatureSource));
-    FS_Sensors_Sources.data[idx].name = Mem_Strdup("nvidia-ml");
-    FS_Sensors_Sources.data[idx].file = Mem_Strdup("none");
-    FS_Sensors_Sources.data[idx].multiplier = 1;
-    FS_Sensors_Sources.data[idx].type = FS_TemperatureSource_Nvidia;
-    FS_Sensors_Sources.size = idx + 1;
-    break;
-  }
+  // Add NVML lazily so probing sensors does not wake a runtime-suspended GPU.
+  FS_Sensors_AddNvidia();
 
   if (! FS_Sensors_Sources.size)
     return err_string("No temperature sources found");

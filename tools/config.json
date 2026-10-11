@@ -229,6 +229,14 @@
         "required": false
       },
       {
+        "name": "TemperatureFilterTimespan",
+        "type": "uint16_t",
+        "default": "6000",
+        "valid": "parameter > 0 && parameter <= 60000",
+        "valid_readable": "0 < parameter <= 60000",
+        "help": "Moving-average window in milliseconds (default 6000). Critical temperatures bypass smoothing."
+      },
+      {
         "name": "Sensors",
         "type": "array_of(str)",
         "required": false,

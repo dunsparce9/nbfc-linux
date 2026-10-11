@@ -279,6 +279,7 @@ struct FanConfiguration {
 	const char*     ResetAcpiMethod;
 	LuaCode         ResetLuaCode;
 	TemperatureAlgorithmType TemperatureAlgorithmType;
+	uint16_t        TemperatureFilterTimespan;
 	array_of(str)   Sensors;
 	array_of(TemperatureThreshold) TemperatureThresholds;
 	array_of(FanSpeedPercentageOverride) FanSpeedPercentageOverrides;
@@ -494,40 +495,52 @@ static inline bool FanConfiguration_IsSet_TemperatureAlgorithmType(const FanConf
 	return o->_set & (uint32_t) (1U << 16);
 }
 
-static inline void FanConfiguration_Set_Sensors(FanConfiguration* o) {
+static inline void FanConfiguration_Set_TemperatureFilterTimespan(FanConfiguration* o) {
 	o->_set |= (uint32_t) (1U << 17);
 }
 
-static inline void FanConfiguration_UnSet_Sensors(FanConfiguration* o) {
+static inline void FanConfiguration_UnSet_TemperatureFilterTimespan(FanConfiguration* o) {
 	o->_set &= (uint32_t) ~(1U << 17);
 }
 
-static inline bool FanConfiguration_IsSet_Sensors(const FanConfiguration* o) {
+static inline bool FanConfiguration_IsSet_TemperatureFilterTimespan(const FanConfiguration* o) {
 	return o->_set & (uint32_t) (1U << 17);
 }
 
-static inline void FanConfiguration_Set_TemperatureThresholds(FanConfiguration* o) {
+static inline void FanConfiguration_Set_Sensors(FanConfiguration* o) {
 	o->_set |= (uint32_t) (1U << 18);
 }
 
-static inline void FanConfiguration_UnSet_TemperatureThresholds(FanConfiguration* o) {
+static inline void FanConfiguration_UnSet_Sensors(FanConfiguration* o) {
 	o->_set &= (uint32_t) ~(1U << 18);
 }
 
-static inline bool FanConfiguration_IsSet_TemperatureThresholds(const FanConfiguration* o) {
+static inline bool FanConfiguration_IsSet_Sensors(const FanConfiguration* o) {
 	return o->_set & (uint32_t) (1U << 18);
 }
 
-static inline void FanConfiguration_Set_FanSpeedPercentageOverrides(FanConfiguration* o) {
+static inline void FanConfiguration_Set_TemperatureThresholds(FanConfiguration* o) {
 	o->_set |= (uint32_t) (1U << 19);
 }
 
-static inline void FanConfiguration_UnSet_FanSpeedPercentageOverrides(FanConfiguration* o) {
+static inline void FanConfiguration_UnSet_TemperatureThresholds(FanConfiguration* o) {
 	o->_set &= (uint32_t) ~(1U << 19);
 }
 
-static inline bool FanConfiguration_IsSet_FanSpeedPercentageOverrides(const FanConfiguration* o) {
+static inline bool FanConfiguration_IsSet_TemperatureThresholds(const FanConfiguration* o) {
 	return o->_set & (uint32_t) (1U << 19);
+}
+
+static inline void FanConfiguration_Set_FanSpeedPercentageOverrides(FanConfiguration* o) {
+	o->_set |= (uint32_t) (1U << 20);
+}
+
+static inline void FanConfiguration_UnSet_FanSpeedPercentageOverrides(FanConfiguration* o) {
+	o->_set &= (uint32_t) ~(1U << 20);
+}
+
+static inline bool FanConfiguration_IsSet_FanSpeedPercentageOverrides(const FanConfiguration* o) {
+	return o->_set & (uint32_t) (1U << 20);
 }
 
 struct Sponsor {

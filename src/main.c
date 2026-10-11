@@ -207,9 +207,6 @@ int main(int argc, char* const argv[])
       close(STDOUT_FILENO);
       close(STDERR_FILENO);
 
-      // Re-initialize nvidia after fork
-      Nvidia_Init();
-
       break;
     default:
       _exit(NBFC_EXIT_SUCCESS);

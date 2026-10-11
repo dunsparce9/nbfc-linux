@@ -426,6 +426,15 @@ Selects the highest temperature among all specified sensors
 .RE
 
 .PP
+.BR TemperatureFilterTimespan :
+.I Integer > 0 and <= 60000
+.RS
+Moving-average window in milliseconds, per fan (default: 6000).
+Any readable sensor at or above CriticalTemperature bypasses smoothing
+and sensor averaging.
+.RE
+
+.PP
 .BR TemperatureThresholds :
 .I Array of TemperatureThreshold
 .RS
