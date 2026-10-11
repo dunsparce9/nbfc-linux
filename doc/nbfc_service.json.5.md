@@ -20,13 +20,13 @@ Main configuration file of nbfc_service (*/etc/nbfc/nbfc.json*).
 
 > Selects the implementation used to access the embedded controller.
 >
-> > -   **ec_sys**: Use the ec_sys kernel module.
+> > - **ec_sys**: Use the ec_sys kernel module.
 > >
-> > -   **acpi_ec**: Use the acpi_ec kernel module.
+> > - **acpi_ec**: Use the acpi_ec kernel module.
 > >
-> > -   **dev_port**: Access the embedded controller via /dev/port.
+> > - **dev_port**: Access the embedded controller via /dev/port.
 > >
-> > -   **dummy**: Do not access the embedded controller at all.
+> > - **dummy**: Do not access the embedded controller at all.
 >
 > If not given, the embedded controller type will be automatically
 > selected.
@@ -53,7 +53,7 @@ Configures which sensors are attached to a fan.
 
 ## ServiceState
 
-State file of the service (*/var/run/nbfc/state.json*).
+State file of the service (*/var/lib/nbfc/state.json*).
 
 **TargetFanSpeeds**: *Array of Float*
 
@@ -73,7 +73,7 @@ State file of the service (*/var/run/nbfc/state.json*).
 
 **LegacyTemperatureThresholdsBehaviour**: *Boolean*
 
-> This option was introduced for beeing backwards compatible with
+> This option was introduced for being backwards compatible with
 > configuration files from the original NBFC project. The default is
 > **false**. Do not use this option for new configuration files.
 
@@ -87,19 +87,27 @@ State file of the service (*/var/run/nbfc/state.json*).
 > Temperature threshold elements and set the fan to 100% speed until the
 > temperature drops below (**CriticalTemperature** minus
 > **CriticalTemperatureOffset**).
+>
+> Can be overwritten by **FanConfiguration**\'s **CriticalTemperature**.
 
 **CriticalTemperatureOffset**: *Integer* \> 0
 
 > See **CriticalTemperature**.
+>
+> Can be overwritten by **FanConfiguration**\'s
+> **CriticalTemperatureOffset**.
 
 **ReadWriteWords**: *Boolean*
 
 > If **true**, NBFC will combine two 8 bit registers to one 16-bit
 > register when reading from or writing to the EC registers.
+>
+> **DEPRECATED.** Use **FanConfiguration**-\>**ReadWords** and
+> **FanConfiguration**-\>**WriteWords** instead.
 
 **LuaLibraries**: *Array of String*
 
-> Import additional Lua libaries.
+> Import additional Lua libraries.
 >
 > Example:
 >
@@ -107,21 +115,25 @@ State file of the service (*/var/run/nbfc/state.json*).
 >
 > Available libraries:
 >
-> -   **base**: Provides core global functions.
+> - **base**: Provides core global functions.
 >
-> -   **math**: Provides standard mathematical functions and constants.
+> - **math**: Provides standard mathematical functions and constants.
 >
-> -   **string**: Provides functions for pattern matching and basic
->     string manipulation.
+> - **string**: Provides functions for pattern matching and basic string
+>   manipulation.
 >
-> -   **table**: Provides utilities for creating and manipulating tables
->     (arrays and dictionaries).
+> - **table**: Provides utilities for creating and manipulating tables
+>   (arrays and dictionaries).
 >
-> -   **io**: Provides file input/output facilities and stream-based I/O
->     operations.
+> - **io**: Provides file input/output facilities and stream-based I/O
+>   operations.
 >
-> -   **os**: Provides operating system interface functions such as
->     time, environment, and process control.
+> - **os**: Provides operating system interface functions such as time,
+>   environment, and process control.
+
+**FirmwareFingerprint**: *Array of String*
+
+> See **FIRMWARE FINGERPRINTING**.
 
 **FanConfigurations**: *Array of FanConfiguration*
 
@@ -138,6 +150,31 @@ Defines how NBFC controls a fan.
 **FanDisplayName**: *String*
 
 > Sets the fan display name.
+
+**CriticalTemperature**: *Integer*
+
+> If the temperature exceeds this threshold, NBFC will ignore all
+> Temperature threshold elements and set the fan to 100% speed until the
+> temperature drops below (**CriticalTemperature** minus
+> **CriticalTemperatureOffset**).
+
+**CriticalTemperatureOffset**: *Integer* \> 0
+
+> See **CriticalTemperature**.
+
+**ReadWords**: *Boolean*
+
+> If **true**, NBFC will combine two 8 bit registers to one 16-bit
+> register when reading from the EC.
+>
+> Overrides **ModelConfig**-\>**ReadWriteWords**.
+
+**WriteWords**: *Boolean*
+
+> If **true**, NBFC will combine two 8 bit registers to one 16-bit
+> register when writing to the EC.
+>
+> Overrides **ModelConfig**-\>**ReadWriteWords**.
 
 **ReadRegister**: *Integer* \>= 0 && *Integer* \<= 255
 
@@ -159,7 +196,7 @@ Defines how NBFC controls a fan.
 
 **ReadLuaCode**: *String* or *Array of String*
 
-> The Lua code to be executed for reading the fan speed. See** LUA
+> The Lua code to be executed for reading the fan speed. See **LUA
 > CODE**.
 >
 > Example:
@@ -191,7 +228,7 @@ Defines how NBFC controls a fan.
 
 **WriteLuaCode**: *String* or *Array of String*
 
-> The Lua code to execute for writing the fan speed. See** LUA CODE**.
+> The Lua code to execute for writing the fan speed. See **LUA CODE**.
 >
 > Example:
 >
@@ -250,7 +287,7 @@ Defines how NBFC controls a fan.
 
 **ResetLuaCode**: *String* or *Array of String*
 
-> The Lua code to be executed upon fan reset. See** LUA CODE**.
+> The Lua code to be executed upon fan reset. See **LUA CODE**.
 >
 > This option is mutually exclusive to **FanSpeedResetValue** and
 > **ResetAcpiMethod**. Only one of them can be set at a time.
@@ -262,24 +299,22 @@ Defines how NBFC controls a fan.
 >
 > Available groups:
 >
-> -   **\@CPU**: Uses all sensors named **coretemp**, **k10temp** or
->     **zenpower**
+> - **\@CPU**: Uses all sensors named **coretemp**, **k10temp** or
+>   **zenpower**
 >
-> -   **\@GPU**: Uses all sensors named **amdgpu**, **nvidia**,
->     **nvidia-ml**, **nouveau** or **radeon**
+> - **\@GPU**: Uses all sensors named **amdgpu**, **nvidia**,
+>   **nvidia-ml**, **nouveau** or **radeon**
 
 **TemperatureAlgorithmType**: *String*
 
 > Specify the algorithm type to compute the temperature.
 >
-> -   **Average**: Computes the average temperature from all specified
->     sensors (default)
+> - **Average**: Computes the average temperature from all specified
+>   sensors (default)
 >
-> -   **Min**: Selects the lowest temperature among all specified
->     sensors
+> - **Min**: Selects the lowest temperature among all specified sensors
 >
-> -   **Max**: Selects the highest temperature among all specified
->     sensors
+> - **Max**: Selects the highest temperature among all specified sensors
 
 **TemperatureFilterTimespan**: *Integer* > 0 && *Integer* <= 60000
 
@@ -304,30 +339,30 @@ Allows to write to any EC register.
 
 > Defines how the value will be written:
 >
-> -   **Set**: overwrites the register with the specified value
->     (register = value)
+> - **Set**: overwrites the register with the specified value (register
+>   = value)
 >
-> -   **And**: performs a binary AND operation (register = register &
->     value)
+> - **And**: performs a binary AND operation (register = register &
+>   value)
 >
-> -   **Or**: performs a binary OR operation (register = register \|
->     value)
+> - **Or**: performs a binary OR operation (register = register \|
+>   value)
 >
-> -   **Call**: calls the ACPI method stored in **AcpiMethod** or
->     **ResetAcpiMethod**
+> - **Call**: calls the ACPI method stored in **AcpiMethod** or
+>   **ResetAcpiMethod**
 >
-> -   **Lua**: executes the Lua code stored in **LuaCode** or
->     **ResetLuaCode**
+> - **Lua**: executes the Lua code stored in **LuaCode** or
+>   **ResetLuaCode**
 
 **WriteOccasion**: *String*
 
 > Defines when the value should be written:
 >
-> -   **OnInitialization**: writes the value once upon initialization
->     (everytime the fan control service starts).
+> - **OnInitialization**: writes the value once upon initialization
+>   (every time the fan control service starts).
 >
-> -   **OnWriteFanSpeed**: writes the value everytime the fan speed is
->     set.
+> - **OnWriteFanSpeed**: writes the value every time the fan speed is
+>   set.
 
 **Register**: *Integer* \>= 0 && *Integer* \<= 255
 
@@ -349,7 +384,7 @@ Allows to write to any EC register.
 
 **LuaCode**: *String* or *Array of String*
 
-> The Lua code to be executed. See** LUA CODE**.
+> The Lua code to be executed. See **LUA CODE**.
 >
 > This option is mutually exclusive to **Value** and **AcpiMethod**.
 > Only one of them can be set at a time.
@@ -375,10 +410,10 @@ Allows to write to any EC register.
 
 **ResetLuaCode**: *String* or *Array of String*
 
-> The Lua code to be executed upon reset. See** LUA CODE**.
+> The Lua code to be executed upon reset. See **LUA CODE**.
 >
 > This option is mutually exclusive to **ResetValue** and
-> **ResetAcpiMethod**. Only one of them can be set at a a time.
+> **ResetAcpiMethod**. Only one of them can be set at a time.
 
 **ResetWriteMode**: *String*
 
@@ -405,15 +440,15 @@ Overrides the default algorithm to calculate fan speeds.
 
 > Defines for which operations the speeds should be overridden:
 >
-> > -   **Read**: if the value in the EC\'s ReadRegister is equal to
-> >     **FanSpeedValue**, the corresponding percentage will not be
-> >     calculated, but instead be set to **FanSpeedPercentage**.
+> > - **Read**: if the value in the EC\'s ReadRegister is equal to
+> >   **FanSpeedValue**, the corresponding percentage will not be
+> >   calculated, but instead be set to **FanSpeedPercentage**.
 > >
-> > -   **Write**: if the target fan speed percentage is equal to
-> >     **FanSpeedPercentage**, the corresponding value will not be
-> >     calculated, but instead be set to **FanSpeedValue**.
+> > - **Write**: if the target fan speed percentage is equal to
+> >   **FanSpeedPercentage**, the corresponding value will not be
+> >   calculated, but instead be set to **FanSpeedValue**.
 > >
-> > -   **ReadWrite**: applies to both, read and write operations.
+> > - **ReadWrite**: applies to both, read and write operations.
 
 ## TemperatureThreshold
 
@@ -450,7 +485,7 @@ error (on failure).
 **Result** is an **integer** and is used for read operations. For write
 operations this value is ignored (returning **0** is recommended).
 
-## Availabe Lua Functions
+## Available Lua Functions
 
 The following functions are exposed to Lua:
 
@@ -510,6 +545,110 @@ If a configuration uses Lua code, ensure that it works correctly with
 **nbfc rate-config**. During rating, **nbfc rate-config** replaces all
 NBFC-specific Lua functions with dummy implementations that always
 return **nil**, **1**.
+
+# FIRMWARE FINGERPRINTING
+
+Firmware fingerprinting can be used to ensure that a configuration file
+matches a specific notebook firmware.
+
+This is especially important for configurations that invoke WMI methods.
+Many notebook vendors reuse the same WMI method names across different
+notebook models while changing the internal implementation and method
+arguments. As a result, matching method names alone is often
+insufficient to determine whether a configuration is compatible with a
+specific firmware.
+
+Fingerprinting allows AML methods to be analyzed for specific code
+patterns.
+
+## Fingerprint Syntax
+
+Fingerprints are written using AML syntax. A fingerprint always begins
+with a method definition, followed by AML code that is searched for
+within the method body.
+
+In addition to regular AML syntax, two wildcard operators are supported:
+
+**..**
+
+> Matches any code within the current block scope, but only at the
+> current scope level.
+
+**\...**
+
+> Matches any code within the current block scope, including code
+> contained in nested scopes.
+
+Example:
+
+> Given the following method:
+>
+> >     Method (\FOO, 2, Serialized) {
+> >         SMTH()
+> >
+> >         Switch (Arg0) {
+> >             Case (0xDEAD) {
+> >                 If (Arg1 == 0xBEEF) {
+> >                     FMTH()
+> >                     Return (One)
+> >                 }
+> >             }
+> >         }
+> >     }
+>
+> The following patterns would **match**:
+>
+> > - Method(\\FOO)
+> >
+> > - Method(\\FOO) { \... 0xDEAD
+> >
+> > - Method(\\FOO) { \... 0xBEEF
+> >
+> > - Method(\\FOO) { \... Switch (Arg0) { .. Case (0xDEAD)
+> >
+> > - Method(\\FOO) { \... Switch (Arg0) { .. Case (0xDEAD) { \... If
+> >   (Arg1 == 0xBEEF)
+> >
+> > - Method(\\FOO) { \... Switch (Arg0) { .. Case (0xDEAD) { \... If
+> >   (Arg1 == 0xBEEF) { \... FMTH()
+> >
+> > - Method(\\FOO) { \... Switch (Arg0) { .. Case (0xDEAD) { \...
+> >   FMTH()
+>
+> The following patterns would **not match**:
+>
+> > - Method(\\FOO) { .. 0xDEAD
+> >
+> > - Method(\\FOO) { Switch (Arg0)
+
+## Matching Rules
+
+> - Whitespace is ignored
+>
+> - Comments are ignored
+>
+> - Only the basename of the identifiers are matched
+>
+> - Only scope hierarchy and ordering are considered
+>
+> - Intermediate code between matched blocks is ignored
+
+## Recommendations
+
+When writing fingerprints:
+
+> - Match magic numbers used by WMI method calls whenever possible
+>
+> - Do not use fully qualified identifiers (use **FOO** instead of
+>   **\\\_SB.DEV0.FOO**)
+>
+> - Avoid unnecessary parentheses, as they are ignored during matching
+>   (use **If (FOO == 0x0)** instead of **If ((Foo == 0x0))**)
+>
+> - The **..** operator should only be used when matching a direct child
+>   block is required. A common example is matching **Case()** blocks
+>   within a **Switch()** statement, where only direct descendants
+>   should be considered.
 
 # FILES
 

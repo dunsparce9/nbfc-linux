@@ -11,10 +11,10 @@
 #include <fcntl.h>  // open, close, O_RDWR
 #include <unistd.h> // pread, pwrite
 
-#define EC_SysLinux_ACPI_EC_Path    "/dev/ec"
-#define EC_SysLinux_EC0_IO_Path     "/sys/kernel/debug/ec/ec0/io"
-#define EC_SysLinux_ACPI_Module_Cmd "modprobe acpi_ec write_support=1"
-#define EC_SysLinux_Module_Cmd      "modprobe ec_sys write_support=1"
+#define EC_SYS_LINUX_ACPI_EC_PATH      "/dev/ec"
+#define EC_SYS_LINUX_EC0_IO_PATH       "/sys/kernel/debug/ec/ec0/io"
+#define EC_SYS_LINUX_ACPI_MODPROBE_CMD "modprobe acpi_ec write_support=1"
+#define EC_SYS_LINUX_MODPROBE_CMD      "modprobe ec_sys write_support=1"
 
 static int         EC_SysLinux_FD = -1;
 static const char* EC_SysLinux_File = NULL;
@@ -23,35 +23,37 @@ static inline Error EC_SysLinux_LoadKernelModule(void);
 static inline Error EC_SysLinux_LoadACPIKernelModule(void);
 
 Error EC_SysLinux_Open(void) {
-  EC_SysLinux_File = EC_SysLinux_EC0_IO_Path;
+  Error e;
+  EC_SysLinux_File = EC_SYS_LINUX_EC0_IO_PATH;
 
-  EC_SysLinux_FD = open(EC_SysLinux_EC0_IO_Path, O_RDWR);
+  EC_SysLinux_FD = open(EC_SYS_LINUX_EC0_IO_PATH, O_RDWR);
   if (EC_SysLinux_FD != -1)
     return err_success();
 
-  Error e = EC_SysLinux_LoadKernelModule();
+  e = EC_SysLinux_LoadKernelModule();
   e_check();
 
-  EC_SysLinux_FD = open(EC_SysLinux_EC0_IO_Path, O_RDWR);
+  EC_SysLinux_FD = open(EC_SYS_LINUX_EC0_IO_PATH, O_RDWR);
   if (EC_SysLinux_FD == -1)
-    return err_stdlib(EC_SysLinux_EC0_IO_Path);
+    return err_stdlib(EC_SYS_LINUX_EC0_IO_PATH);
   else
     return err_success();
 }
 
 Error EC_SysLinux_ACPI_Open(void) {
-  EC_SysLinux_File = EC_SysLinux_ACPI_EC_Path;
+  Error e;
+  EC_SysLinux_File = EC_SYS_LINUX_ACPI_EC_PATH;
 
-  EC_SysLinux_FD = open(EC_SysLinux_ACPI_EC_Path, O_RDWR);
+  EC_SysLinux_FD = open(EC_SYS_LINUX_ACPI_EC_PATH, O_RDWR);
   if (EC_SysLinux_FD != -1)
     return err_success();
 
-  Error e = EC_SysLinux_LoadACPIKernelModule();
+  e = EC_SysLinux_LoadACPIKernelModule();
   e_check();
 
-  EC_SysLinux_FD = open(EC_SysLinux_ACPI_EC_Path, O_RDWR);
+  EC_SysLinux_FD = open(EC_SYS_LINUX_ACPI_EC_PATH, O_RDWR);
   if (EC_SysLinux_FD == -1)
-    return err_stdlib(EC_SysLinux_ACPI_EC_Path);
+    return err_stdlib(EC_SYS_LINUX_ACPI_EC_PATH);
   else
     return err_success();
 }
@@ -93,11 +95,11 @@ Error EC_SysLinux_ReadWord(uint8_t register_, uint16_t* out) {
 }
 
 static inline Error EC_SysLinux_LoadKernelModule(void) {
-  return Process_Call(EC_SysLinux_Module_Cmd);
+  return Process_Call(EC_SYS_LINUX_MODPROBE_CMD);
 }
 
 static inline Error EC_SysLinux_LoadACPIKernelModule(void) {
-  return Process_Call(EC_SysLinux_ACPI_Module_Cmd);
+  return Process_Call(EC_SYS_LINUX_ACPI_MODPROBE_CMD);
 }
 
 const EC_VTable EC_SysLinux_VTable = {

@@ -8,85 +8,93 @@
 #include "check_root.h"
 #include "client_global.h"
 
+#include <errno.h>  // errno
 #include <stdio.h>  // printf
-#include <string.h> // strcmp
+#include <string.h> // strcmp, strerror
 
-const struct cli99_Option acpi_dump_options[] = {
-  cli99_Options_Include(&main_options),
-  {"command",   Option_Acpi_Dump_Command, cli99_NormalPositional},
-  {"-f|--file", Option_Acpi_Dump_File,    cli99_RequiredArgument},
-  {"-j|--json", Option_Acpi_Dump_Json,    cli99_NoArgument      },
+const struct cli99_Option AcpiDump_CommandLine[] = {
+  cli99_Options_Include(&Main_CommandLine),
+  {"command",         Option_AcpiDump_Command,    cli99_NormalPositional},
+  {"-d|--dsdt",       Option_AcpiDump_DSDT_File,  cli99_RequiredArgument},
+  {"-D|--dsdt-dir",   Option_AcpiDump_DSDT_Dir,   cli99_RequiredArgument},
+  {"-j|--json",       Option_AcpiDump_Json,       cli99_NoArgument      },
+  {"-u|--unverified", Option_AcpiDump_Unverified, cli99_NoArgument      },
   cli99_Options_End()
 };
 
-enum NBFC_PACKED_ENUM AcpiDump_Action {
+typedef enum NBFC_PACKED_ENUM {
   AcpiDump_Action_None,
   AcpiDump_Action_Registers,
   AcpiDump_Action_ECRegisters,
   AcpiDump_Action_Methods,
   AcpiDump_Action_DSL,
-};
+  AcpiDump_Action_Map,
+} AcpiDump_Action;
 
 struct {
-  enum AcpiDump_Action action;
+  AcpiDump_Action action;
   bool json;
-  const char* file;
-} Acpi_Dump_Options = {
+  bool unverified;
+  array_of(str) files;
+  const char* dir;
+} AcpiDump_Options = {
   AcpiDump_Action_None,
   false,
-  ACPI_ANALYSIS_ACPI_DSDT
+  false,
+  {0},
+  NULL,
 };
 
-enum AcpiDump_Action AcpiDump_CommandFromString(const char* s) {
+AcpiDump_Action AcpiDump_CommandFromString(const char* s) {
   if (! strcmp(s, "registers"))    return AcpiDump_Action_Registers;
   if (! strcmp(s, "ec-registers")) return AcpiDump_Action_ECRegisters;
   if (! strcmp(s, "methods"))      return AcpiDump_Action_Methods;
   if (! strcmp(s, "dsl"))          return AcpiDump_Action_DSL;
+  if (! strcmp(s, "map"))          return AcpiDump_Action_Map;
   return AcpiDump_Action_None;
 }
 
 /*
- * Dumps the disassembled DSDT to stdout.
+ * Disassembles the AML files and writes them to stdout.
  */
-static int AcpiDump_DSL(const char* dsdt_file) {
+static int AcpiDump_DSL(array_of(str)* aml_files) {
   Error e;
   char* out;
 
-  e = Acpi_Analysis_Is_IASL_Installed();
+  e = AcpiAnalysis_IsIaslInstalled();
   if (e) {
     Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
   }
 
-  e = Acpi_Analysis_Get_DSL(dsdt_file, &out);
-  if (e) {
-    Log_Error("%s", err_print_all(e));
-    return NBFC_EXIT_FAILURE;
+  for_each_array(str*, file, *aml_files) {
+    e = AcpiAnalysis_DisassembleFile(*file, &out);
+    if (e) {
+      Log_Error("%s", err_print_all(e));
+      return NBFC_EXIT_FAILURE;
+    }
+
+    printf("%s", out);
+    Mem_Free(out);
   }
-
-  printf("%s", out);
-
-#if STRICT_CLEANUP
-  Mem_Free(out);
-#endif
 
   return NBFC_EXIT_SUCCESS;
 }
 
 /*
- * Dumps the methods of a DSDT to stdout.
+ * Dumps the methods from the given AML files to stdout.
  */
-static int AcpiDump_Methods(const char* dsdt_file, bool json) {
+static int AcpiDump_Methods(array_of(str)* aml_files, bool json) {
   Error e;
   AcpiInfo acpi_info = {0};
 
-  e = Acpi_Analysis_Is_AcpiExec_Installed();
+  e = AcpiAnalysis_IsAcpiExecInstalled();
   if (e) {
     Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
   }
 
-  e = Acpi_Analysis_Get_Info(dsdt_file, &acpi_info);
+  e = AcpiAnalysis_GetInfo(aml_files, &acpi_info);
   if (e) {
     Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
@@ -116,32 +124,20 @@ static int AcpiDump_Methods(const char* dsdt_file, bool json) {
 }
 
 /*
- * Check if `name` is a region contained in `ec_regions`.
- */
-static bool AcpiDump_ContainsRegion(array_of(AcpiOperationRegionName)* ec_regions, const char* name) {
-  for_each_array(AcpiOperationRegionName*, region, *ec_regions) {
-    if (! strcmp(*region, name))
-      return true;
-  }
-
-  return false;
-}
-
-/*
- * Dump all available registers of a DSDT to stdout.
+ * Dump all available registers from the given AML files to stdout.
  *
  * If `only_ec` is true, only output registers that are available
  * through the embedded controller.
  */
-static int AcpiDump_Registers(const char* dsdt_file, bool json, bool only_ec) {
+static int AcpiDump_Registers(array_of(str)* aml_files, bool json, bool only_ec, bool unverified) {
   Error e;
   AcpiInfo acpi_info = {0};
 
   // ==========================================================================
-  // Check if apcica-tools are installed
+  // Check if acpica-tools are installed
   // ==========================================================================
 
-  e = Acpi_Analysis_Is_AcpiExec_Installed();
+  e = AcpiAnalysis_IsAcpiExecInstalled();
   if (e) {
     Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
@@ -151,11 +147,18 @@ static int AcpiDump_Registers(const char* dsdt_file, bool json, bool only_ec) {
   // Get ACPI info
   // ==========================================================================
 
-  e = Acpi_Analysis_Get_Info(dsdt_file, &acpi_info);
+  e = AcpiAnalysis_GetInfo(aml_files, &acpi_info);
   if (e) {
     Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
   }
+
+  // ==========================================================================
+  // Add unverified EC registers
+  // ==========================================================================
+
+  if (unverified)
+    AcpiAnalysis_AddUnverifiedEmbeddedControllerRegions(&acpi_info);
 
   // ==========================================================================
   // Output
@@ -166,7 +169,7 @@ static int AcpiDump_Registers(const char* dsdt_file, bool json, bool only_ec) {
     nx_json* array = create_json_array(NULL, &root);
 
     for_each_array(AcpiRegister*, register_, acpi_info.registers) {
-      if (only_ec && !AcpiDump_ContainsRegion(&acpi_info.ec_region_names, register_->region))
+      if (only_ec && !AcpiAnalysis_IsEmbeddedControllerRegion(&acpi_info, register_->region))
         continue;
 
       AcpiRegister_ToJson(register_, NULL, array);
@@ -180,7 +183,7 @@ static int AcpiDump_Registers(const char* dsdt_file, bool json, bool only_ec) {
   }
   else {
     for_each_array(AcpiRegister*, register_, acpi_info.registers) {
-      if (only_ec && !AcpiDump_ContainsRegion(&acpi_info.ec_region_names, register_->region))
+      if (only_ec && !AcpiAnalysis_IsEmbeddedControllerRegion(&acpi_info, register_->region))
         continue;
 
       printf("%s [%s] byte=%u byte_hex=0x%X bit=%u total_bit=%u len=%u acc=%u\n",
@@ -206,30 +209,119 @@ static int AcpiDump_Registers(const char* dsdt_file, bool json, bool only_ec) {
   return NBFC_EXIT_SUCCESS;
 }
 
-int AcpiDump(void) {
-  const char* const dsdt_file = Acpi_Dump_Options.file;
-  const bool json = Acpi_Dump_Options.json;
+/*
+ * Dumps a map file to stdout:
+ *
+ *   EC_REGISTER_NAME=ADDRESS
+ *   ...
+ *   METHOD_NAME
+ *
+ * Registers are limited to EC registers, identified by their basename
+ * and addressed by their byte offset (e.g. "CFAN=0x100").
+ * All ACPI methods are printed as well, one per line.
+ */
+static int AcpiDump_Map(array_of(str)* aml_files, bool unverified) {
+  Error e;
+  AcpiInfo acpi_info = {0};
 
-  if (Acpi_Dump_Options.action == AcpiDump_Action_None) {
-    Log_Error("Missing command");
+  // ==========================================================================
+  // Check if acpica-tools are installed
+  // ==========================================================================
+
+  e = AcpiAnalysis_IsAcpiExecInstalled();
+  if (e) {
+    Log_Error("%s", err_print_all(e));
+    return NBFC_EXIT_FAILURE;
+  }
+
+  // ==========================================================================
+  // Get ACPI info
+  // ==========================================================================
+
+  e = AcpiAnalysis_GetInfo(aml_files, &acpi_info);
+  if (e) {
+    Log_Error("%s", err_print_all(e));
+    return NBFC_EXIT_FAILURE;
+  }
+
+  // ==========================================================================
+  // Add unverified EC registers
+  // ==========================================================================
+
+  if (unverified)
+    AcpiAnalysis_AddUnverifiedEmbeddedControllerRegions(&acpi_info);
+
+  // ==========================================================================
+  // Output
+  // ==========================================================================
+
+  for_each_array(AcpiRegister*, register_, acpi_info.registers) {
+    if (! AcpiAnalysis_IsEmbeddedControllerRegion(&acpi_info, register_->region))
+      continue;
+
+    printf("%s=0x%X\n",
+      AcpiAnalysis_RegisterBasename(register_->name),
+      register_->bit_offset / 8);
+  }
+
+  for_each_array(AcpiMethod*, method, acpi_info.methods) {
+    printf("%s\n", method->name);
+  }
+
+  // ==========================================================================
+  // Free data
+  // ==========================================================================
+
+#if STRICT_CLEANUP
+  AcpiInfo_Free(&acpi_info);
+#endif
+
+  return NBFC_EXIT_SUCCESS;
+}
+
+static Error AcpiDump_MakeAMLFilesArray(void) {
+  if (AcpiDump_Options.files.size)
+    return err_success();
+
+  // AcpiDump_Options.dir may be NULL.
+  // In this case `AcpiAnalysis_GetAmlFiles()` uses the a default directory.
+  return AcpiAnalysis_GetAmlFiles(AcpiDump_Options.dir, &AcpiDump_Options.files);
+}
+
+int AcpiDump(void) {
+  Error e;
+  const bool json = AcpiDump_Options.json;
+  const bool unverified = AcpiDump_Options.unverified;
+
+  if (AcpiDump_Options.action == AcpiDump_Action_None) {
+    Log_Error("acpi-dump: Missing command");
     return NBFC_EXIT_CMDLINE;
   }
 
-  if (! file_exists(dsdt_file)) {
-    Log_Error("%s: %s", dsdt_file, strerror(errno));
+  if (! AcpiDump_Options.files.size && ! AcpiDump_Options.dir) {
+    check_root();
+  }
+
+  for_each_array(str*, file, AcpiDump_Options.files) {
+    if (! File_IsReadable(*file)) {
+      Log_Error("%s: %s", *file, strerror(errno));
+      return NBFC_EXIT_FAILURE;
+    }
+  }
+
+  e = AcpiDump_MakeAMLFilesArray();
+  if (e) {
+    Log_Error("%s", err_print_all(e));
     return NBFC_EXIT_FAILURE;
   }
 
-  if (! file_is_readable(dsdt_file)) {
-    Log_Error("%s: %s (do you need root priviledges?)", dsdt_file, strerror(errno));
-    return NBFC_EXIT_FAILURE;
-  }
-
-  switch (Acpi_Dump_Options.action) {
-    case AcpiDump_Action_DSL:         return AcpiDump_DSL(dsdt_file);
-    case AcpiDump_Action_Methods:     return AcpiDump_Methods(dsdt_file, json);
-    case AcpiDump_Action_Registers:   return AcpiDump_Registers(dsdt_file, json, false);
-    case AcpiDump_Action_ECRegisters: return AcpiDump_Registers(dsdt_file, json, true);
+  array_of(str)* const aml_files = &AcpiDump_Options.files;
+  switch (AcpiDump_Options.action) {
+    case AcpiDump_Action_DSL:         return AcpiDump_DSL(aml_files);
+    case AcpiDump_Action_Methods:     return AcpiDump_Methods(aml_files, json);
+    case AcpiDump_Action_Registers:   return AcpiDump_Registers(aml_files, json, false, unverified);
+    case AcpiDump_Action_ECRegisters: return AcpiDump_Registers(aml_files, json, true, unverified);
+    case AcpiDump_Action_Map:         return AcpiDump_Map(aml_files, unverified);
     default:                          return NBFC_EXIT_FAILURE;
   }
 }

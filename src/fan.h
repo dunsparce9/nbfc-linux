@@ -16,7 +16,8 @@ typedef enum NBFC_PACKED_ENUM {
 typedef struct Fan Fan;
 struct Fan {
   FanConfiguration* fanConfig;        /*const*/
-  bool     readWriteWords;            /*const*/
+  bool     readWords;                 /*const*/
+  bool     writeWords;                /*const*/
   int      criticalTemperature;       /*const*/
   int      criticalTemperatureOffset; /*const*/
   uint16_t minSpeedValueWrite;        /*const*/
@@ -33,6 +34,7 @@ struct Fan {
   float currentSpeed;
   Fan_Mode mode;
   bool isCritical;
+  uint8_t num_read_warnings;
 };
 
 Error    Fan_Init(Fan*, FanConfiguration*, ModelConfig*);
@@ -49,7 +51,5 @@ void     Fan_SetAutoSpeed(Fan*);
 
 Error    Fan_ECReset(Fan*);
 Error    Fan_ECFlush(Fan*);
-
-declare_array_of(Fan);
 
 #endif

@@ -2,6 +2,7 @@
 #define NBFC_LOG_H_
 
 #include "macros.h"
+#include "io_utils.h"
 
 #include <stdbool.h>
 #include <unistd.h> // write
@@ -20,7 +21,7 @@ extern LogLevel Log_LogLevel;
 
 void Log_Init(bool);
 void Log_Close(void);
-void Log_Log(LogLevel, const char* fmt, ...) PRINTF_LIKE(2, 3);
+void Log_Log(LogLevel, const char* fmt, ...) NBFC_PRINTF_LIKE(2, 3);
 
 #define Log_Error(...) Log_Log(LogLevel_Error, __VA_ARGS__)
 #define Log_Warn(...)  Log_Log(LogLevel_Warn, __VA_ARGS__)
@@ -28,11 +29,11 @@ void Log_Log(LogLevel, const char* fmt, ...) PRINTF_LIKE(2, 3);
 #define Log_Debug(...) Log_Log(LogLevel_Debug, __VA_ARGS__)
 
 static inline void WriteToErr(const char* s) {
-  write(STDERR_FILENO, s, strlen(s));
+  IO_WriteAll(STDERR_FILENO, s, strlen(s));
 }
 
 static inline void WriteToOut(const char* s) {
-  write(STDOUT_FILENO, s, strlen(s));
+  IO_WriteAll(STDOUT_FILENO, s, strlen(s));
 }
 
 #endif

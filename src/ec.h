@@ -2,6 +2,7 @@
 #define NBFC_EC_H_
 
 #include "config.h"
+#include "model_config.h"
 #include "error.h"
 
 #include <stdint.h>
@@ -19,5 +20,8 @@ struct EC_VTable {
 
 bool  EC_CheckWorking(const EC_VTable*);
 Error EC_FindWorking(const EC_VTable**);
+
+EmbeddedControllerType EmbeddedControllerType_By_EC(const EC_VTable*);
+const EC_VTable* EC_By_EmbeddedControllerType(EmbeddedControllerType);
 
 #endif

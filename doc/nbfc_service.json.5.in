@@ -85,7 +85,7 @@ See
 .SS ServiceState
 .PP
 State file of the service
-.RI ( @RUNSTATEDIR@/nbfc/state.json ).
+.RI ( /var/lib/nbfc/state.json ).
 .PP
 .BR TargetFanSpeeds :
 .I Array of Float
@@ -115,7 +115,7 @@ The Author of the config file. Enter whatever you want.
 .BR LegacyTemperatureThresholdsBehaviour :
 .I Boolean
 .RS
-This option was introduced for beeing backwards compatible with configuration files from the original NBFC project.
+This option was introduced for being backwards compatible with configuration files from the original NBFC project.
 The default is
 .BR false .
 Do not use this option for new configuration files.
@@ -134,6 +134,9 @@ Defines how often NBFC polls the EC for changes (in milliseconds).
 .RS
 If the temperature exceeds this threshold, NBFC will ignore all Temperature threshold elements and set the fan to 100% speed until the temperature drops below
 .RB ( CriticalTemperature " minus " CriticalTemperatureOffset ).
+
+Can be overwritten by
+.BR FanConfiguration "'s " CriticalTemperature .
 .RE
 
 .PP
@@ -142,6 +145,9 @@ If the temperature exceeds this threshold, NBFC will ignore all Temperature thre
 .RS
 See
 .BR CriticalTemperature .
+
+Can be overwritten by
+.BR FanConfiguration "'s " CriticalTemperatureOffset .
 .RE
 
 .PP
@@ -151,13 +157,17 @@ See
 If
 .BR true ,
 NBFC will combine two 8 bit registers to one 16\-bit register when reading from or writing to the EC registers.
+
+.B DEPRECATED.
+Use
+.BR FanConfiguration "->" ReadWords " and " FanConfiguration "->" WriteWords " instead."
 .RE
 
 .PP
 .BR LuaLibraries :
 .I Array of String
 .RS
-Import additional Lua libaries.
+Import additional Lua libraries.
 
 Example:
 .RS
@@ -186,6 +196,14 @@ Provides operating system interface functions such as time, environment, and pro
 .RE
 
 .PP
+.BR FirmwareFingerprint :
+.I Array of String
+.RS
+See
+.BR "FIRMWARE FINGERPRINTING" .
+.RE
+
+.PP
 .BR FanConfigurations :
 .I Array of FanConfiguration
 .RS
@@ -208,6 +226,46 @@ Defines how NBFC controls a fan.
 .I String
 .RS
 Sets the fan display name.
+.RE
+
+.PP
+.BR CriticalTemperature :
+.I Integer
+.RS
+If the temperature exceeds this threshold, NBFC will ignore all Temperature threshold elements and set the fan to 100% speed until the temperature drops below
+.RB ( CriticalTemperature " minus " CriticalTemperatureOffset ).
+.RE
+
+.PP
+.BR CriticalTemperatureOffset :
+.IR Integer " > 0"
+.RS
+See
+.BR CriticalTemperature .
+.RE
+
+.PP
+.BR ReadWords :
+.I Boolean
+.RS
+If
+.BR true ,
+NBFC will combine two 8 bit registers to one 16\-bit register when reading from the EC.
+
+Overrides
+.BR ModelConfig "->" ReadWriteWords "."
+.RE
+
+.PP
+.BR WriteWords :
+.I Boolean
+.RS
+If
+.BR true ,
+NBFC will combine two 8 bit registers to one 16\-bit register when writing to the EC.
+
+Overrides
+.BR ModelConfig "->" ReadWriteWords "."
 .RE
 
 .PP
@@ -485,10 +543,10 @@ Defines when the value should be written:
 
 .IP \(bu 2
 .BR OnInitialization :
-writes the value once upon initialization (everytime the fan control service starts).
+writes the value once upon initialization (every time the fan control service starts).
 .IP \(bu 2
 .BR OnWriteFanSpeed :
-writes the value everytime the fan speed is set.
+writes the value every time the fan speed is set.
 .RE
 
 .PP
@@ -570,7 +628,7 @@ The Lua code to be executed upon reset.
 
 This option is mutually exclusive to
 .BR ResetValue " and " ResetAcpiMethod .
-Only one of them can be set at a a time.
+Only one of them can be set at a time.
 .RE
 
 .PP
@@ -689,7 +747,7 @@ and is used for read operations. For write operations this value is ignored (ret
 .B 0
 is recommended).
 
-.SS Availabe Lua Functions
+.SS Available Lua Functions
 The following functions are exposed to Lua:
 
 .BR acpi_call ( method ):
@@ -763,6 +821,125 @@ During rating,
 .B nbfc rate-config
 replaces all NBFC-specific Lua functions with dummy implementations that always return
 .BR nil ", " 1 .
+
+.SH FIRMWARE FINGERPRINTING
+.PP
+Firmware fingerprinting can be used to ensure that a configuration file matches
+a specific notebook firmware.
+
+This is especially important for configurations that invoke WMI methods.
+Many notebook vendors reuse the same WMI method names across different notebook
+models while changing the internal implementation and method arguments.
+As a result, matching method names alone is often insufficient to determine
+whether a configuration is compatible with a specific firmware.
+
+Fingerprinting allows AML methods to be analyzed for specific code patterns.
+
+.SS
+Fingerprint Syntax
+
+Fingerprints are written using AML syntax.
+A fingerprint always begins with a method definition, followed by AML code that
+is searched for within the method body.
+
+In addition to regular AML syntax, two wildcard operators are supported:
+
+.B ..
+.RS
+Matches any code within the current block scope, but only at the current scope level.
+.RE
+
+.B ...
+.RS
+Matches any code within the current block scope, including code contained in nested scopes.
+.RE
+
+Example:
+.RS
+
+Given the following method:
+
+.RS
+.nf
+Method (\eFOO, 2, Serialized) {
+    SMTH()
+
+    Switch (Arg0) {
+        Case (0xDEAD) {
+            If (Arg1 == 0xBEEF) {
+                FMTH()
+                Return (One)
+            }
+        }
+    }
+}
+.fi
+.RE
+
+The following patterns would
+.BR match :
+.RS
+.IP \(bu 2
+Method(\\FOO)
+.IP \(bu 2
+Method(\\FOO) { ... 0xDEAD
+.IP \(bu 2
+Method(\\FOO) { ... 0xBEEF
+.IP \(bu 2
+Method(\\FOO) { ... Switch (Arg0) { .. Case (0xDEAD)
+.IP \(bu 2
+Method(\\FOO) { ... Switch (Arg0) { .. Case (0xDEAD) { ... If (Arg1 == 0xBEEF)
+.IP \(bu 2
+Method(\\FOO) { ... Switch (Arg0) { .. Case (0xDEAD) { ... If (Arg1 == 0xBEEF) { ... FMTH()
+.IP \(bu 2
+Method(\\FOO) { ... Switch (Arg0) { .. Case (0xDEAD) { ... FMTH()
+.RE
+
+The following patterns would
+.BR "not match" :
+.RS
+.IP \(bu 2
+Method(\\FOO) { .. 0xDEAD
+.IP \(bu 2
+Method(\\FOO) { Switch (Arg0)
+.RE
+.RE
+
+.SS Matching Rules
+.RS
+.IP \(bu 2
+Whitespace is ignored
+.IP \(bu 2
+Comments are ignored
+.IP \(bu 2
+Only the basename of the identifiers are matched
+.IP \(bu 2
+Only scope hierarchy and ordering are considered
+.IP \(bu 2
+Intermediate code between matched blocks is ignored
+.RE
+
+.SS Recommendations
+When writing fingerprints:
+.RS
+.IP \(bu 2
+Match magic numbers used by WMI method calls whenever possible
+.IP \(bu 2
+Do not use fully qualified identifiers
+.RB "(use " "FOO" " instead of " "\\_SB.DEV0.FOO" ")"
+.IP \(bu 2
+Avoid unnecessary parentheses, as they are ignored during matching
+.RB "(use " "If (FOO == 0x0)" " instead of " "If ((Foo == 0x0))" ")"
+.IP \(bu 2
+The
+.B ..
+operator should only be used when matching a direct child block is required.
+A common example is matching
+.B Case()
+blocks within a
+.B Switch()
+statement, where only direct descendants should be considered.
+.RE
 
 .SH FILES
 .PP

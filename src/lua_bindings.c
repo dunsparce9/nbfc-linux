@@ -11,19 +11,19 @@ extern const EC_VTable* ec;
 static uint64_t Lua_CurrentValue;
 static lua_State* Lua_State = NULL;
 
-int Lua_Return_Error(lua_State* l, const char* err) {
+int Lua_ReturnError(lua_State* l, const char* err) {
   lua_pushstring(l, err);
   lua_pushnil(l);
   return 2;
 }
 
-int Lua_Return_Integer(lua_State* l, uint64_t result) {
+int Lua_ReturnInteger(lua_State* l, uint64_t result) {
   lua_pushnil(l);
   lua_pushinteger(l, result);
   return 2;
 }
 
-int Lua_Return_String(lua_State* l, const char* result) {
+int Lua_ReturnString(lua_State* l, const char* result) {
   lua_pushnil(l);
   lua_pushstring(l, result);
   return 2;
@@ -39,17 +39,17 @@ static int Lua_EC_Read(lua_State* l) {
   lua_Integer register_ = luaL_checkinteger(l, 1);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_read(): register < 0");
+    return Lua_ReturnError(l, "ec_read(): register < 0");
 
   if (register_ > 255)
-    return Lua_Return_Error(l, "ec_read(): register > 255");
+    return Lua_ReturnError(l, "ec_read(): register > 255");
 
   uint8_t byte;
   e = ec->ReadByte((uint8_t) register_, &byte);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, byte);
+  return Lua_ReturnInteger(l, byte);
 }
 
 static int Lua_EC_ReadWord(lua_State* l) {
@@ -57,17 +57,17 @@ static int Lua_EC_ReadWord(lua_State* l) {
   lua_Integer register_ = luaL_checkinteger(l, 1);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_read_word(): register < 0");
+    return Lua_ReturnError(l, "ec_read_word(): register < 0");
 
   if (register_ > 254)
-    return Lua_Return_Error(l, "ec_read_word(): register > 254");
+    return Lua_ReturnError(l, "ec_read_word(): register > 254");
 
   uint16_t word;
   e = ec->ReadWord((uint8_t) register_, &word);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, word);
+  return Lua_ReturnInteger(l, word);
 }
 
 static int Lua_EC_Write(lua_State* l) {
@@ -76,22 +76,22 @@ static int Lua_EC_Write(lua_State* l) {
   lua_Integer value = luaL_checkinteger(l, 2);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_write(): register < 0");
+    return Lua_ReturnError(l, "ec_write(): register < 0");
 
   if (register_ > 255)
-    return Lua_Return_Error(l, "ec_write(): register > 255");
+    return Lua_ReturnError(l, "ec_write(): register > 255");
 
   if (value < 0)
-    return Lua_Return_Error(l, "ec_write(): value < 0");
+    return Lua_ReturnError(l, "ec_write(): value < 0");
 
   if (value > 255)
-    return Lua_Return_Error(l, "ec_write(): value > 255");
+    return Lua_ReturnError(l, "ec_write(): value > 255");
 
   e = ec->WriteByte((uint8_t) register_, (uint8_t) value);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, 0);
+  return Lua_ReturnInteger(l, 0);
 }
 
 static int Lua_EC_WriteWord(lua_State* l) {
@@ -100,22 +100,22 @@ static int Lua_EC_WriteWord(lua_State* l) {
   lua_Integer value = luaL_checkinteger(l, 2);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_write_word(): register < 0");
+    return Lua_ReturnError(l, "ec_write_word(): register < 0");
 
   if (register_ > 254)
-    return Lua_Return_Error(l, "ec_write_word(): register > 254");
+    return Lua_ReturnError(l, "ec_write_word(): register > 254");
 
   if (value < 0)
-    return Lua_Return_Error(l, "ec_write_word(): value < 0");
+    return Lua_ReturnError(l, "ec_write_word(): value < 0");
 
   if (value > UINT16_MAX)
-    return Lua_Return_Error(l, "ec_write_word(): value > 65535");
+    return Lua_ReturnError(l, "ec_write_word(): value > 65535");
 
   e = ec->WriteWord((uint8_t) register_, (uint16_t) value);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, 0);
+  return Lua_ReturnInteger(l, 0);
 }
 
 static int Lua_ACPI_Call(lua_State* l) {
@@ -126,13 +126,13 @@ static int Lua_ACPI_Call(lua_State* l) {
 
   e = AcpiCall_Open();
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
   e = AcpiCall_Call(method, 0, &result);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, result);
+  return Lua_ReturnInteger(l, result);
 }
 
 static int Lua_ACPI_CallRaw(lua_State* l) {
@@ -143,13 +143,13 @@ static int Lua_ACPI_CallRaw(lua_State* l) {
 
   e = AcpiCall_Open();
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
   e = AcpiCall_CallRaw(method, method_len, &result);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_String(l, result);
+  return Lua_ReturnString(l, result);
 }
 
 static int Lua_ACPI_GetInt(lua_State* l) {
@@ -161,9 +161,9 @@ static int Lua_ACPI_GetInt(lua_State* l) {
 
   e = AcpiCall_GetInt(acpi_result, path, &result);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, result);
+  return Lua_ReturnInteger(l, result);
 }
 
 Error Lua_Open(void) {
@@ -203,7 +203,7 @@ Error Lua_UseLibrary(const char* libname) {
   else if (! strcmp(libname, LUA_OSLIBNAME))
     luaL_requiref(Lua_State, LUA_OSLIBNAME, luaopen_os, 1);
   else
-    return err_stringf("%s: Unkown Lua library", libname);
+    return err_stringf("%s: Unknown Lua library", libname);
 
   lua_pop(Lua_State, 1);
   return err_success();
@@ -255,11 +255,11 @@ Error Lua_Call(int function_ref, uint64_t value, uint64_t* result) {
   // stack:
   // -2 = error
   // -1 = result
-  
+
   // check error
   if (! lua_isnil(Lua_State, -2)) {
     const char* err = lua_tostring(Lua_State, -2);
-    e = err_string(err ? err : "Unkown Lua error");
+    e = err_string(err ? err : "Unknown Lua error");
     lua_pop(Lua_State, 2);
     return e;
   }

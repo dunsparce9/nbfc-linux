@@ -6,13 +6,32 @@
 #include "log.h"
 #include "sleep.h"
 #include "nvidia.h"
+#include "str_functions.h"
+#include "vfio.h"
 
 #include <dirent.h>
+#include <float.h>   // FLT_MAX
 #include <errno.h>   // ENODATA, EINVAL
 #include <stdio.h>   // snprintf
 #include <stdlib.h>  // strtod
-#include <string.h>  // memcpy, strncmp
+#include <string.h>  // strstr
 #include <linux/limits.h> // PATH_MAX
+
+static inline bool IsCPUSensorName(const char* s) {
+  return
+    !strcmp(s, "coretemp") ||
+    !strcmp(s, "k10temp")  ||
+    !strcmp(s, "zenpower");
+}
+
+static inline bool IsGPUSensorName(const char* s) {
+  return
+    !strcmp(s, "amdgpu")    ||
+    !strcmp(s, "nvidia")    ||
+    !strcmp(s, "nvidia-ml") ||
+    !strcmp(s, "nouveau")   ||
+    !strcmp(s, "radeon");
+}
 
 static const char* const LinuxHwmonDirs[] = {
   "/sys/class/hwmon/hwmon%d",
@@ -24,13 +43,13 @@ static const char* const LinuxTempSensorFile = "temp%d_input";
 
 array_of(FS_TemperatureSource) FS_Sensors_Sources = {0};
 
-Error FS_TemperatureSource_GetTemperature(FS_TemperatureSource* self, float* out) {
+Error FS_TemperatureSource_GetTemperature(const FS_TemperatureSource* self, float* out) {
   char buf[32];
-  file_op_result res;
+  FileResult res;
   res.ok = true;
 
   if (self->type == FS_TemperatureSource_File) {
-    res = slurp_file(buf, sizeof(buf), my.file);
+    res = File_Read(buf, sizeof(buf), my.file);
   }
   else if (self->type == FS_TemperatureSource_Nvidia) {
     return Nvidia_GetTemperature(my.file, out);
@@ -65,10 +84,6 @@ Error FS_TemperatureSource_GetTemperature(FS_TemperatureSource* self, float* out
   return err_success();
 }
 
-bool FS_TemperatureSource_ShouldLogReadError(FS_TemperatureSource* self) {
-  return self->type != FS_TemperatureSource_Nvidia;
-}
-
 #define FS_SENSORS_MAX_SOURCES 256
 #define FS_SENSORS_BUFFER_SIZE (sizeof(FS_TemperatureSource) * FS_SENSORS_MAX_SOURCES)
 
@@ -81,12 +96,12 @@ static Error FS_Sensors_Init_HwMon(void) {
   array_size_t n_sources = 0;
 
   for (const char* const* hwmonDir = LinuxHwmonDirs; *hwmonDir; ++hwmonDir) {
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 30; i++) {
       snprintf(dir,  PATH_MAX, *hwmonDir, i);
       snprintf(file, PATH_MAX, "%s/name", dir);
 
       char source_name[256];
-      file_op_result res = slurp_file(source_name, sizeof(source_name), file);
+      FileResult res = File_Read(source_name, sizeof(source_name), file);
       if (! res.ok) {
         if (errno != ENOENT) {
           e = err_stdlib(file);
@@ -95,10 +110,9 @@ static Error FS_Sensors_Init_HwMon(void) {
         continue;
       }
 
-      while (res.len && source_name[res.len] < 32)
-        source_name[res.len--] = '\0'; /* strip whitespace */
+      str_rstrip_whitespace(source_name, res.len);
 
-      for (int j = 0; j < 10; j++) {
+      for (int j = 0; j < 30; j++) {
         if (n_sources >= FS_SENSORS_MAX_SOURCES)
           goto end;
 
@@ -137,7 +151,7 @@ end:
   }
 
   FS_Sensors_Sources.size = n_sources;
-  FS_Sensors_Sources.data = (FS_TemperatureSource*) Mem_Calloc(n_sources, sizeof(FS_TemperatureSource));
+  array_calloc(FS_TemperatureSource, FS_Sensors_Sources, n_sources);
   memcpy(FS_Sensors_Sources.data, sources, n_sources * sizeof(FS_TemperatureSource));
   Buffer_Release((char*) sources, FS_SENSORS_BUFFER_SIZE);
   return err_success();
@@ -147,6 +161,10 @@ void FS_Sensors_Log(void) {
   for_each_array(FS_TemperatureSource*, source, FS_Sensors_Sources)
     Log_Info("Available temperature source: \"%s\" (%s)", source->name, source->file);
 }
+
+// ============================================================================
+// FS_Sensors_Init / FS_Sensors_Cleanup
+// ============================================================================
 
 static void FS_Sensors_AddNvidia(void) {
   DIR* dir = opendir("/sys/module/nvidia/drivers/pci:nvidia");
@@ -173,7 +191,7 @@ static void FS_Sensors_AddNvidia(void) {
   closedir(dir);
 }
 
-Error FS_Sensors_Init(void) {
+Error FS_Sensors_Init(bool use_gpu) {
   Error e;
   int slept;
   const int sleep_time = 30;
@@ -187,8 +205,13 @@ Error FS_Sensors_Init(void) {
     sleep_ms(1000);
   }
 
-  // Add NVML lazily so probing sensors does not wake a runtime-suspended GPU.
-  FS_Sensors_AddNvidia();
+  // If VFIO passthrough is active, skip nvidia-ml entirely.
+  // Checking /proc/cmdline alone is not enough because users may
+  // configure passthrough via /etc/modprobe.d/, driverctl, etc.
+  if (use_gpu && !VFIO_CheckProcCmdline() && !VFIO_CheckSysBusPciDevices()) {
+    // Discover without initializing NVML or waking a suspended GPU.
+    FS_Sensors_AddNvidia();
+  }
 
   if (! FS_Sensors_Sources.size)
     return err_string("No temperature sources found");
@@ -206,4 +229,166 @@ void FS_Sensors_Cleanup(void) {
   Mem_Free(FS_Sensors_Sources.data);
   FS_Sensors_Sources.size = 0;
   FS_Sensors_Sources.data = NULL;
+}
+
+Error FS_TemperatureSources_GetTemperatureAndMax(
+  FS_TemperatureSource_References* sources,
+  TemperatureAlgorithmType algorithm,
+  float* out,
+  float* hottest)
+{
+  Error e;
+  float tmp;
+  float sum = 0;
+  float min = FLT_MAX;
+  float max = FLT_MIN;
+  int   total = 0;
+
+  for_each_array(array_size_t*, ts_idx, *sources) {
+    const FS_TemperatureSource* ts = FS_Sensors_Sources_UnRef(*ts_idx);
+    e = FS_TemperatureSource_GetTemperature(ts, &tmp);
+    if (ts->type != FS_TemperatureSource_Nvidia)
+      e_warn();
+    if (! e) {
+      min = MIN(min, tmp);
+      max = MAX(max, tmp);
+      sum += tmp;
+      ++total;
+    }
+  }
+
+  if (! total)
+    return err_string("No temperatures available");
+
+  if (hottest)
+    *hottest = max;
+
+  switch (algorithm) {
+    case TemperatureAlgorithmType_Average:
+      *out = sum / (float) total;
+      return err_success();
+    case TemperatureAlgorithmType_Min:
+      *out = min;
+      return err_success();
+    case TemperatureAlgorithmType_Max:
+      *out = max;
+      return err_success();
+    default:
+      return err_string("ERR-03");
+  }
+}
+
+Error FS_TemperatureSources_GetTemperature(
+  FS_TemperatureSource_References* sources,
+  TemperatureAlgorithmType algorithm,
+  float* out)
+{
+  return FS_TemperatureSources_GetTemperatureAndMax(sources, algorithm, out, NULL);
+}
+
+void FS_TemperatureSources_AddTemperatureSource(
+  FS_TemperatureSource_References* out,
+  size_t ref_idx)
+{
+  const size_t idx = out->size;
+  array_realloc(array_size_t, *out, (idx + 1));
+  out->data[idx] = ref_idx;
+  out->size++;
+}
+
+// Adds one or more FS_TemperatureSource_Ptr to an array.
+//
+// If `sensor` is not found in `FS_Sensors_Sources` by its name or its path,
+// this function assumes that `sensor` is a user defined file path to a file
+// containing the temperature.
+//
+// Return error if `sensor` is not found in available temperature sources
+// or `sensor` is not a valid file path to a temperature file.
+Error FS_TemperatureSources_AddTemperatureSources(
+  FS_TemperatureSource_References* out,
+  const char* sensor)
+{
+  Error e;
+  bool found_sensors = false;
+
+  // ==========================================================================
+  // Sensor group "@CPU": Add all sensors found in `IsCPUSensorName`
+  // ==========================================================================
+  if (!strcmp(sensor, "@CPU")) {
+    for_each_array(FS_TemperatureSource*, ts, FS_Sensors_Sources) {
+      if (IsCPUSensorName(ts->name)) {
+        FS_TemperatureSources_AddTemperatureSource(out, FS_Sensors_Sources_Ref(ts));
+        found_sensors = true;
+      }
+    }
+
+    return found_sensors
+      ? err_success()
+      : err_stringf("%s: No sensors found", "@CPU");
+  }
+
+  // ==========================================================================
+  // Sensor group "@GPU": Add all sensors found in `IsGPUSensorName`
+  // ==========================================================================
+  if (!strcmp(sensor, "@GPU")) {
+    for_each_array(FS_TemperatureSource*, ts, FS_Sensors_Sources) {
+      if (IsGPUSensorName(ts->name)) {
+        FS_TemperatureSources_AddTemperatureSource(out, FS_Sensors_Sources_Ref(ts));
+        found_sensors = true;
+      }
+    }
+
+    return found_sensors
+      ? err_success()
+      : err_stringf("%s: No sensors found", "@GPU");
+  }
+
+  // ==========================================================================
+  // Add sensors by name or path (for available sensors)
+  // ==========================================================================
+  for_each_array(FS_TemperatureSource*, ts, FS_Sensors_Sources) {
+    if (!strcmp(sensor, ts->name) || !strcmp(sensor, ts->file)) {
+      FS_TemperatureSources_AddTemperatureSource(out, FS_Sensors_Sources_Ref(ts));
+      found_sensors = true;
+    }
+  }
+
+  if (found_sensors)
+    return err_success();
+
+  // ==========================================================================
+  // Create a new TemperatureSource (a user defined file or command)
+  // ==========================================================================
+  FS_TemperatureSource source;
+
+  if (sensor[0] == '$') {
+    // Sensor is a command
+    source.name = "command";
+    source.file = (char*) sensor + 1;
+    source.type = FS_TemperatureSource_Command;
+    source.multiplier = 1;
+  }
+  else {
+    // Sensor is a user defined file
+    source.name = "anonymous";
+    source.file = (char*) sensor;
+    source.type = FS_TemperatureSource_File;
+    source.multiplier = 0.001f;
+  }
+
+  float t; // NOLINT
+  e = FS_TemperatureSource_GetTemperature(&source, &t);
+  if (e)
+    return e;
+
+  const array_size_t idx = FS_Sensors_Sources.size;
+  array_realloc(FS_TemperatureSource, FS_Sensors_Sources, (idx + 1));
+  FS_Sensors_Sources.data[idx].name = Mem_Strdup(source.name);
+  FS_Sensors_Sources.data[idx].file = Mem_Strdup(source.file);
+  FS_Sensors_Sources.data[idx].multiplier = source.multiplier;
+  FS_Sensors_Sources.data[idx].type = source.type;
+  FS_Sensors_Sources.size = idx + 1;
+  FS_TemperatureSources_AddTemperatureSource(out, idx);
+
+  return err_success();
 }

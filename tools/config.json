@@ -119,8 +119,8 @@
       {
         "name": "Description",
         "type": "const char*",
-        "default": "Mem_Strdup(\"\")",
-        "help": "A short description of what effect the RegisterWriteConfiguration will have"
+        "help": "A short description of what effect the RegisterWriteConfiguration will have",
+        "required": false
       }
     ]
   },
@@ -132,6 +132,30 @@
         "name": "FanDisplayName",
         "type": "const char*",
         "help": "Fan display name",
+        "required": false
+      },
+      {
+        "name": "CriticalTemperature",
+        "type": "int16_t",
+        "help": "",
+        "required": false
+      },
+      {
+        "name": "CriticalTemperatureOffset",
+        "type": "uint16_t",
+        "help": "",
+        "required": false
+      },
+      {
+        "name": "ReadWords",
+        "type": "bool",
+        "help": "",
+        "required": false
+      },
+      {
+        "name": "WriteWords",
+        "type": "bool",
+        "help": "",
         "required": false
       },
       {
@@ -293,8 +317,8 @@
       {
         "name": "Author",
         "type": "const char*",
-        "default": "Mem_Strdup(\"\")",
-        "help": "The Author of the config file. Enter whatever you want."
+        "help": "The Author of the config file. Enter whatever you want.",
+        "required": false
       },
       {
         "name": "LegacyTemperatureThresholdsBehaviour",
@@ -336,6 +360,11 @@
         "name": "Sponsor",
         "type": "Sponsor",
         "help": "Sponsored by data",
+        "required": false
+      },
+      {
+        "name": "FirmwareFingerprint",
+        "type": "array_of(str)",
         "required": false
       },
       {
@@ -428,6 +457,11 @@
       },
       {
         "name": "Temperature",
+        "type": "float",
+        "help": ""
+      },
+      {
+        "name": "CriticalTemperature",
         "type": "float",
         "help": ""
       },

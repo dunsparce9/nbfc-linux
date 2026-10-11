@@ -4,6 +4,7 @@
 #include "server.h"
 #include "error.h"
 #include "file_utils.h"
+#include "hardware_check.h"
 #include "log.h"
 #include "ec.h"
 #include "model_config.h"
@@ -45,7 +46,7 @@ static const struct option cli_options[] = {
   {0,                     0,                 0,     0 },
 };
 
-static const char cli_options_str[] = "hve:rfds:c:";
+static const char cli_options_str[] = "hve:rfdc:";
 
 static void parse_opts(int argc, char* const argv[]) {
   int o;
@@ -123,23 +124,34 @@ int main(int argc, char* const argv[])
     exit(NBFC_EXIT_FAILURE);
   }
 
-  mkdir_p(NBFC_CONFIG_DIR, 0755);
-  mkdir_p(NBFC_MODEL_CONFIGS_DIR_MUTABLE, 0755);
+  if (mkdir_p(NBFC_CONFIG_DIR, 0755) < 0) {
+    Log_Error("Cannot create directory: %s: %s", NBFC_CONFIG_DIR, strerror(errno));
+    exit(NBFC_EXIT_FAILURE);
+  }
+
+  if (mkdir_p(NBFC_MODEL_CONFIGS_DIR_MUTABLE, 0755) < 0) {
+    Log_Error("Cannot create directory: %s: %s", NBFC_MODEL_CONFIGS_DIR_MUTABLE, strerror(errno));
+    exit(NBFC_EXIT_FAILURE);
+  }
 
   Log_Init(options.fork);
   atexit(Log_Close);
 
   Log_Info("NBFC-Linux comes with no warranty. Run `nbfc warranty` for details.");
+  Log_Info("NBFC-Linux needs your support. Run `nbfc support` for details.");
   Log_Info("Running version " NBFC_VERSION);
   Log_Info("SYSCONFDIR is \"%s\"", SYSCONFDIR);
   Log_Info("DATADIR is \"%s\"", DATADIR);
   Log_Info("RUNSTATEDIR is \"%s\"", RUNSTATEDIR);
   Log_Info("Available Embedded Controllers: " EC_AVAILABLE_STR);
 
+  // Check if hardware has changed
+  HardwareCheck();
+
   // Sets the OOM (Out-Of-Memory) score adjustment for this process to -1000,
   // which tells the Linux kernel to never kill this process, even under
   // extreme memory pressure.
-  if (! write_file("/proc/self/oom_score_adj", O_WRONLY, 0, "-1000\n", 6).ok) {
+  if (! File_Write("/proc/self/oom_score_adj", O_WRONLY, 0, "-1000\n", 6).ok) {
     Log_Error("%s: %s", "/proc/self/oom_score_adj", strerror(errno));
     exit(NBFC_EXIT_FAILURE);
   }
@@ -235,7 +247,7 @@ int main(int argc, char* const argv[])
     }
 
     // ========================================================================
-    // Run the server loop for Service_ModelConfig.EcPollInterval miliseconds.
+    // Run the server loop for Service_ModelConfig.EcPollInterval milliseconds.
     // ========================================================================
     struct timeval start, current;
     gettimeofday(&start, NULL);

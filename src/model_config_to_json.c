@@ -36,15 +36,15 @@ static void LuaCode_ToJson(const char* code, nx_json* parent, const char* key) {
 static void TemperatureThreshold_ToJson(const TemperatureThreshold* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (TemperatureThreshold_IsSet_UpThreshold(cfg)) {
+  if (cfg->isset.UpThreshold) {
     create_json_integer("UpThreshold", obj, cfg->UpThreshold);
   }
 
-  if (TemperatureThreshold_IsSet_UpThreshold(cfg)) {
+  if (cfg->isset.DownThreshold) {
     create_json_integer("DownThreshold", obj, cfg->DownThreshold);
   }
 
-  if (TemperatureThreshold_IsSet_FanSpeed(cfg)) {
+  if (cfg->isset.FanSpeed) {
     create_json_double("FanSpeed", obj, cfg->FanSpeed);
   }
 }
@@ -52,16 +52,16 @@ static void TemperatureThreshold_ToJson(const TemperatureThreshold* cfg, nx_json
 static void FanSpeedPercentageOverride_ToJson(const FanSpeedPercentageOverride* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (FanSpeedPercentageOverride_IsSet_FanSpeedPercentage(cfg)) {
+  if (cfg->isset.FanSpeedPercentage) {
     create_json_double("FanSpeedPercentage", obj, cfg->FanSpeedPercentage);
   }
 
-  if (FanSpeedPercentageOverride_IsSet_FanSpeedValue(cfg)) {
+  if (cfg->isset.FanSpeedValue) {
     create_json_integer("FanSpeedValue", obj, cfg->FanSpeedValue);
   }
 
-  if (FanSpeedPercentageOverride_IsSet_TargetOperation(cfg)) {
-    const char *str = "?";
+  if (cfg->isset.TargetOperation) {
+    const char* str = "?";
     switch (cfg->TargetOperation) {
     case OverrideTargetOperation_Read:      str = "Read";      break;
     case OverrideTargetOperation_Write:     str = "Write";     break;
@@ -75,8 +75,8 @@ static void FanSpeedPercentageOverride_ToJson(const FanSpeedPercentageOverride* 
 static void RegisterWriteConfiguration_ToJson(const RegisterWriteConfiguration* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (RegisterWriteConfiguration_IsSet_WriteOccasion(cfg)) {
-    const char *str = "?";
+  if (cfg->isset.WriteOccasion) {
+    const char* str = "?";
     switch (cfg->WriteOccasion) {
     case RegisterWriteOccasion_OnInitialization: str = "OnInitialization"; break;
     case RegisterWriteOccasion_OnWriteFanSpeed:  str = "OnWriteFanSpeed";  break;
@@ -85,7 +85,7 @@ static void RegisterWriteConfiguration_ToJson(const RegisterWriteConfiguration* 
     create_json_string("WriteOccasion", obj, str);
   }
 
-  if (RegisterWriteConfiguration_IsSet_WriteMode(cfg)) {
+  if (cfg->isset.WriteMode) {
     const char* str = "?";
     switch (cfg->WriteMode) {
     case RegisterWriteMode_Set:   str = "Set";  break;
@@ -98,27 +98,27 @@ static void RegisterWriteConfiguration_ToJson(const RegisterWriteConfiguration* 
     create_json_string("WriteMode", obj, str);
   }
 
-  if (RegisterWriteConfiguration_IsSet_Register(cfg)) {
+  if (cfg->isset.Register) {
     create_json_integer("Register", obj, cfg->Register);
   }
 
-  if (RegisterWriteConfiguration_IsSet_Value(cfg)) {
+  if (cfg->isset.Value) {
     create_json_integer("Value", obj, cfg->Value);
   }
 
-  if (RegisterWriteConfiguration_IsSet_AcpiMethod(cfg)) {
+  if (cfg->isset.AcpiMethod) {
     create_json_string("AcpiMethod", obj, cfg->AcpiMethod);
   }
 
-  if (RegisterWriteConfiguration_IsSet_LuaCode(cfg)) {
+  if (cfg->isset.LuaCode) {
     LuaCode_ToJson(cfg->LuaCode.source, obj, "LuaCode");
   }
 
-  if (RegisterWriteConfiguration_IsSet_ResetRequired(cfg)) {
+  if (cfg->isset.ResetRequired) {
     create_json_bool("ResetRequired", obj, cfg->ResetRequired);
   }
 
-  if (RegisterWriteConfiguration_IsSet_ResetWriteMode(cfg)) {
+  if (cfg->isset.ResetWriteMode) {
     const char* str = "?";
     switch (cfg->ResetWriteMode) {
     case RegisterWriteMode_Set:   str = "Set";  break;
@@ -131,19 +131,19 @@ static void RegisterWriteConfiguration_ToJson(const RegisterWriteConfiguration* 
     create_json_string("ResetWriteMode", obj, str);
   }
 
-  if (RegisterWriteConfiguration_IsSet_ResetValue(cfg)) {
+  if (cfg->isset.ResetValue) {
     create_json_integer("ResetValue", obj, cfg->ResetValue);
   }
 
-  if (RegisterWriteConfiguration_IsSet_ResetAcpiMethod(cfg)) {
+  if (cfg->isset.ResetAcpiMethod) {
     create_json_string("ResetAcpiMethod", obj, cfg->ResetAcpiMethod);
   }
 
-  if (RegisterWriteConfiguration_IsSet_ResetLuaCode(cfg)) {
+  if (cfg->isset.ResetLuaCode) {
     LuaCode_ToJson(cfg->ResetLuaCode.source, obj, "ResetLuaCode");
   }
 
-  if (RegisterWriteConfiguration_IsSet_Description(cfg)) {
+  if (cfg->isset.Description) {
     create_json_string("Description", obj, cfg->Description);
   }
 }
@@ -151,71 +151,87 @@ static void RegisterWriteConfiguration_ToJson(const RegisterWriteConfiguration* 
 static void FanConfiguration_ToJson(const FanConfiguration* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (FanConfiguration_IsSet_FanDisplayName(cfg)) {
+  if (cfg->isset.FanDisplayName) {
     create_json_string("FanDisplayName", obj, cfg->FanDisplayName);
   }
 
-  if (FanConfiguration_IsSet_ReadRegister(cfg)) {
+  if (cfg->isset.CriticalTemperature) {
+    create_json_integer("CriticalTemperature", obj, cfg->CriticalTemperature);
+  }
+
+  if (cfg->isset.CriticalTemperatureOffset) {
+    create_json_integer("CriticalTemperatureOffset", obj, cfg->CriticalTemperatureOffset);
+  }
+
+  if (cfg->isset.ReadWords) {
+    create_json_bool("ReadWords", obj, cfg->ReadWords);
+  }
+
+  if (cfg->isset.WriteWords) {
+    create_json_bool("WriteWords", obj, cfg->WriteWords);
+  }
+
+  if (cfg->isset.ReadRegister) {
     create_json_integer("ReadRegister", obj, cfg->ReadRegister);
   }
 
-  if (FanConfiguration_IsSet_ReadAcpiMethod(cfg)) {
+  if (cfg->isset.ReadAcpiMethod) {
     create_json_string("ReadAcpiMethod", obj, cfg->ReadAcpiMethod);
   }
 
-  if (FanConfiguration_IsSet_ReadLuaCode(cfg)) {
+  if (cfg->isset.ReadLuaCode) {
     LuaCode_ToJson(cfg->ReadLuaCode.source, obj, "ReadLuaCode");
   }
 
-  if (FanConfiguration_IsSet_WriteRegister(cfg)) {
+  if (cfg->isset.WriteRegister) {
     create_json_integer("WriteRegister", obj, cfg->WriteRegister);
   }
 
-  if (FanConfiguration_IsSet_WriteAcpiMethod(cfg)) {
+  if (cfg->isset.WriteAcpiMethod) {
     create_json_string("WriteAcpiMethod", obj, cfg->WriteAcpiMethod);
   }
 
-  if (FanConfiguration_IsSet_WriteLuaCode(cfg)) {
+  if (cfg->isset.WriteLuaCode) {
     LuaCode_ToJson(cfg->WriteLuaCode.source, obj, "WriteLuaCode");
   }
 
-  if (FanConfiguration_IsSet_MinSpeedValue(cfg)) {
+  if (cfg->isset.MinSpeedValue) {
     create_json_integer("MinSpeedValue", obj, cfg->MinSpeedValue);
   }
 
-  if (FanConfiguration_IsSet_MaxSpeedValue(cfg)) {
+  if (cfg->isset.MaxSpeedValue) {
     create_json_integer("MaxSpeedValue", obj, cfg->MaxSpeedValue);
   }
 
-  if (FanConfiguration_IsSet_MinSpeedValueRead(cfg)) {
+  if (cfg->isset.MinSpeedValueRead) {
     create_json_integer("MinSpeedValueRead", obj, cfg->MinSpeedValueRead);
   }
 
-  if (FanConfiguration_IsSet_MaxSpeedValueRead(cfg)) {
+  if (cfg->isset.MaxSpeedValueRead) {
     create_json_integer("MaxSpeedValueRead", obj, cfg->MaxSpeedValueRead);
   }
 
-  if (FanConfiguration_IsSet_IndependentReadMinMaxValues(cfg)) {
+  if (cfg->isset.IndependentReadMinMaxValues) {
     create_json_bool("IndependentReadMinMaxValues", obj, cfg->IndependentReadMinMaxValues);
   }
 
-  if (FanConfiguration_IsSet_ResetRequired(cfg)) {
+  if (cfg->isset.ResetRequired) {
     create_json_bool("ResetRequired", obj, cfg->ResetRequired);
   }
 
-  if (FanConfiguration_IsSet_FanSpeedResetValue(cfg)) {
+  if (cfg->isset.FanSpeedResetValue) {
     create_json_integer("FanSpeedResetValue", obj, cfg->FanSpeedResetValue);
   }
 
-  if (FanConfiguration_IsSet_ResetAcpiMethod(cfg)) {
+  if (cfg->isset.ResetAcpiMethod) {
     create_json_string("ResetAcpiMethod", obj, cfg->ResetAcpiMethod);
   }
 
-  if (FanConfiguration_IsSet_ResetLuaCode(cfg)) {
+  if (cfg->isset.ResetLuaCode) {
     LuaCode_ToJson(cfg->ResetLuaCode.source, obj, "ResetLuaCode");
   }
 
-  if (FanConfiguration_IsSet_TemperatureAlgorithmType(cfg)) {
+  if (cfg->isset.TemperatureAlgorithmType) {
     const char* str = "?";
     switch (cfg->TemperatureAlgorithmType) {
     case TemperatureAlgorithmType_Min:     str = "Min";     break;
@@ -226,23 +242,23 @@ static void FanConfiguration_ToJson(const FanConfiguration* cfg, nx_json* parent
     create_json_string("TemperatureAlgorithmType", obj, str);
   }
 
-  if (FanConfiguration_IsSet_TemperatureFilterTimespan(cfg)) {
+  if (cfg->isset.TemperatureFilterTimespan) {
     create_json_integer("TemperatureFilterTimespan", obj, cfg->TemperatureFilterTimespan);
   }
 
-  if (FanConfiguration_IsSet_Sensors(cfg)) {
+  if (cfg->isset.Sensors) {
     nx_json* array = create_json_array("Sensors", obj);
     for_each_array(str*, sensor, cfg->Sensors)
       create_json_string(NULL, array, *sensor);
   }
 
-  if (FanConfiguration_IsSet_TemperatureThresholds(cfg)) {
+  if (cfg->isset.TemperatureThresholds) {
     nx_json* array = create_json_array("TemperatureThresholds", obj);
     for_each_array(TemperatureThreshold*, tt, cfg->TemperatureThresholds)
       TemperatureThreshold_ToJson(tt, array, NULL);
   }
 
-  if (FanConfiguration_IsSet_FanSpeedPercentageOverrides(cfg)) {
+  if (cfg->isset.FanSpeedPercentageOverrides) {
     nx_json* array = create_json_array("FanSpeedPercentageOverrides", obj);
     for_each_array(FanSpeedPercentageOverride*, fspo, cfg->FanSpeedPercentageOverrides)
       FanSpeedPercentageOverride_ToJson(fspo, array, NULL);
@@ -252,19 +268,19 @@ static void FanConfiguration_ToJson(const FanConfiguration* cfg, nx_json* parent
 static void Sponsor_ToJson(const Sponsor* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (Sponsor_IsSet_Name(cfg)) {
+  if (cfg->isset.Name) {
     create_json_string("Name", obj, cfg->Name);
   }
 
-  if (Sponsor_IsSet_Description(cfg)) {
+  if (cfg->isset.Description) {
     create_json_string("Description", obj, cfg->Description);
   }
 
-  if (Sponsor_IsSet_URL(cfg)) {
+  if (cfg->isset.URL) {
     create_json_string("URL", obj, cfg->URL);
   }
 
-  if (Sponsor_IsSet_BannerURL(cfg)) {
+  if (cfg->isset.BannerURL) {
     create_json_string("BannerURL", obj, cfg->BannerURL);
   }
 }
@@ -272,49 +288,49 @@ static void Sponsor_ToJson(const Sponsor* cfg, nx_json* parent, const char* key)
 void ModelConfig_ToJson(const ModelConfig* cfg, nx_json* parent, const char* key) {
   nx_json* obj = create_json_object(key, parent);
 
-  if (ModelConfig_IsSet_LegacyTemperatureThresholdsBehaviour(cfg)) {
+  if (cfg->isset.LegacyTemperatureThresholdsBehaviour) {
     create_json_bool("LegacyTemperatureThresholdsBehaviour", obj, cfg->LegacyTemperatureThresholdsBehaviour);
   }
 
-  if (ModelConfig_IsSet_NotebookModel(cfg)) {
+  if (cfg->isset.NotebookModel) {
     create_json_string("NotebookModel", obj, cfg->NotebookModel);
   }
 
-  if (ModelConfig_IsSet_Author(cfg)) {
+  if (cfg->isset.Author) {
     create_json_string("Author", obj, cfg->Author);
   }
 
-  if (ModelConfig_IsSet_LuaLibraries(cfg)) {
+  if (cfg->isset.LuaLibraries) {
     // TODO: LuaLibraries
   }
 
-  if (ModelConfig_IsSet_EcPollInterval(cfg)) {
+  if (cfg->isset.EcPollInterval) {
     create_json_integer("EcPollInterval", obj, cfg->EcPollInterval);
   }
 
-  if (ModelConfig_IsSet_CriticalTemperature(cfg)) {
+  if (cfg->isset.CriticalTemperature) {
     create_json_integer("CriticalTemperature", obj, cfg->CriticalTemperature);
   }
 
-  if (ModelConfig_IsSet_CriticalTemperatureOffset(cfg)) {
+  if (cfg->isset.CriticalTemperatureOffset) {
     create_json_integer("CriticalTemperatureOffset", obj, cfg->CriticalTemperatureOffset);
   }
 
-  if (ModelConfig_IsSet_ReadWriteWords(cfg)) {
+  if (cfg->isset.ReadWriteWords) {
     create_json_bool("ReadWriteWords", obj, cfg->ReadWriteWords);
   }
 
-  if (ModelConfig_IsSet_Sponsor(cfg)) {
+  if (cfg->isset.Sponsor) {
     Sponsor_ToJson(&cfg->Sponsor, obj, "Sponsor");
   }
 
-  if (ModelConfig_IsSet_FanConfigurations(cfg)) {
+  if (cfg->isset.FanConfigurations) {
     nx_json* array = create_json_array("FanConfigurations", obj);
     for_each_array(FanConfiguration*, fan_config, cfg->FanConfigurations)
       FanConfiguration_ToJson(fan_config, array, NULL);
   }
 
-  if (ModelConfig_IsSet_RegisterWriteConfigurations(cfg)) {
+  if (cfg->isset.RegisterWriteConfigurations) {
     nx_json* array = create_json_array("RegisterWriteConfigurations", obj);
     for_each_array(RegisterWriteConfiguration*, rwc_config, cfg->RegisterWriteConfigurations)
       RegisterWriteConfiguration_ToJson(rwc_config, array, NULL);
@@ -325,35 +341,35 @@ void ModelConfig_ToJson(const ModelConfig* cfg, nx_json* parent, const char* key
  * Unset all fields with empty arrays in ModelConfig.
  */
 void ModelConfig_RemoveEmptyArrays(ModelConfig* cfg) {
-  if (ModelConfig_IsSet_FanConfigurations(cfg) &&
+  if (cfg->isset.FanConfigurations &&
       cfg->FanConfigurations.size == 0)
   {
-    ModelConfig_UnSet_FanConfigurations(cfg);
+    cfg->isset.FanConfigurations = false;
   }
 
-  if (ModelConfig_IsSet_RegisterWriteConfigurations(cfg) &&
+  if (cfg->isset.RegisterWriteConfigurations &&
       cfg->RegisterWriteConfigurations.size == 0)
   {
-    ModelConfig_UnSet_RegisterWriteConfigurations(cfg);
+    cfg->isset.RegisterWriteConfigurations = false;
   }
 
   for_each_array(FanConfiguration*, fan_config, cfg->FanConfigurations) {
-    if (FanConfiguration_IsSet_Sensors(fan_config) &&
+    if (fan_config->isset.Sensors &&
         fan_config->Sensors.size == 0)
     {
-      FanConfiguration_UnSet_Sensors(fan_config);
+      fan_config->isset.Sensors = false;
     }
 
-    if (FanConfiguration_IsSet_TemperatureThresholds(fan_config) &&
+    if (fan_config->isset.TemperatureThresholds &&
         fan_config->TemperatureThresholds.size == 0)
     {
-      FanConfiguration_UnSet_TemperatureThresholds(fan_config);
+      fan_config->isset.TemperatureThresholds = false;
     }
 
-    if (FanConfiguration_IsSet_FanSpeedPercentageOverrides(fan_config) &&
+    if (fan_config->isset.FanSpeedPercentageOverrides &&
         fan_config->FanSpeedPercentageOverrides.size == 0)
     {
-      FanConfiguration_UnSet_FanSpeedPercentageOverrides(fan_config);
+      fan_config->isset.FanSpeedPercentageOverrides = false;
     }
   }
 }
@@ -362,25 +378,25 @@ void ModelConfig_RemoveEmptyArrays(ModelConfig* cfg) {
  * Unset all fields with empty strings in ModelConfig.
  */
 void ModelConfig_RemoveEmptyStrings(ModelConfig* cfg) {
-  if (ModelConfig_IsSet_Author(cfg) &&
+  if (cfg->isset.Author &&
       strlen(cfg->Author) == 0)
   {
-    ModelConfig_UnSet_Author(cfg);
+    cfg->isset.Author = false;
   }
 
   for_each_array(RegisterWriteConfiguration*, rwc_config, cfg->RegisterWriteConfigurations) {
-    if (RegisterWriteConfiguration_IsSet_Description(rwc_config) &&
+    if (rwc_config->isset.Description &&
         strlen(rwc_config->Description) == 0)
     {
-      RegisterWriteConfiguration_UnSet_Description(rwc_config);
+      rwc_config->isset.Description = false;
     }
   }
 
   for_each_array(FanConfiguration*, fan_config, cfg->FanConfigurations) {
-    if (FanConfiguration_IsSet_FanDisplayName(fan_config) &&
+    if (fan_config->isset.FanDisplayName &&
         strlen(fan_config->FanDisplayName) == 0)
     {
-      FanConfiguration_UnSet_FanDisplayName(fan_config);
+      fan_config->isset.FanDisplayName = false;
     }
   }
 }

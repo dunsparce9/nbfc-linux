@@ -18,6 +18,7 @@ enum Option {
   Option_Status_Service,
   Option_Status_Fan,
   Option_Status_Watch,
+  Option_Status_Json,
 
   // Sensors options
   Option_Sensors_Command,
@@ -34,20 +35,38 @@ enum Option {
   Option_Config_Yes,
 
   // Rate-Config options
-  Option_Rate_Config_File,
-  Option_Rate_Config_DSDT_File,
-  Option_Rate_Config_All,
-  Option_Rate_Config_Full_Help,
-  Option_Rate_Config_Json,
-  Option_Rate_Config_Rules,
-  Option_Rate_Config_No_Download,
-  Option_Rate_Config_Print_Rules,
-  Option_Rate_Config_Min_Score,
+  Option_RateConfig_File,
+  Option_RateConfig_DSDT_File,
+  Option_RateConfig_DSDT_Dir,
+  Option_RateConfig_All,
+  Option_RateConfig_Full_Help,
+  Option_RateConfig_Json,
+  Option_RateConfig_Input,
+  Option_RateConfig_Rules,
+  Option_RateConfig_No_Download,
+  Option_RateConfig_Print_Rules,
+  Option_RateConfig_Min_Score,
+  Option_RateConfig_Unverified,
+  Option_RateConfig_Bad,
+  Option_RateConfig_Quiet,
+  Option_RateConfig_FanCount,
+
+  // Test-Config options
+  Option_TestConfig_Action,
+  Option_TestConfig_Input,
+  Option_TestConfig_Output,
+  Option_TestConfig_Cpu,
+  Option_TestConfig_Gpu,
+  Option_TestConfig_Interval,
+  Option_TestConfig_Break,
+  Option_TestConfig_Threshold,
 
   // Acpi-Dump options
-  Option_Acpi_Dump_Command,
-  Option_Acpi_Dump_File,
-  Option_Acpi_Dump_Json,
+  Option_AcpiDump_Command,
+  Option_AcpiDump_DSDT_File,
+  Option_AcpiDump_DSDT_Dir,
+  Option_AcpiDump_Json,
+  Option_AcpiDump_Unverified,
 
   // Set options
   Option_Set_Auto,
@@ -62,8 +81,9 @@ enum Option {
   Option_Update_Quiet,
 
   // Support options
-  Option_Support_Upload_Firmware,
-  Option_Support_Print_Command,
+  Option_Support_UploadFirmware,
+  Option_Support_PrintCommand,
+  Option_Support_CreateArchive,
 
   // Show-Variable options
   Option_ShowVariable_Variable,
@@ -72,6 +92,6 @@ enum Option {
   Option_Xml2Json_File,
 };
 
-extern const struct cli99_Option main_options[];
+extern const struct cli99_Option Main_CommandLine[];
 
 #endif

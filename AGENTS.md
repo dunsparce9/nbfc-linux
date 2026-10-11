@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is an Autotools-based C port of NoteBook FanControl. Core programs live in `src/`: `nbfc_service`, `nbfc`, `ec_probe`, and `test_model_config`. Client subcommands are under `src/client/`, generated model-config parser code is under `src/generated/`, and tests/assets are under `src/test/`. Hardware configuration data is JSON in `share/nbfc/configs/`, with legacy/source XML in `xml/`. Documentation is in `doc/`; shell completions in `completion/`; init/service templates in `etc/`; packaging in `pkgbuilds/`.
+This is an Autotools-based C port of NoteBook FanControl. Core programs live in `src/`: `nbfc_service`, `nbfc`, and `ec_probe`. Client subcommands are under `src/client/`, generated model-config parser code is under `src/generated/`, and tests/assets (including `test_model_config`) are under `src/test/`. Hardware configuration data is JSON in `share/nbfc/configs/`, with legacy/source XML in `xml/`. Documentation is in `doc/`; shell completions in `completion/`; init/service templates in `etc/`; packaging in `pkgbuilds/`.
 
 ## Build, Test, and Development Commands
 
@@ -20,7 +20,14 @@ C code uses two-space indentation, K&R-style braces, and short early-return erro
 
 ## Testing Guidelines
 
-Build first with `make`, then run focused tests manually. Use `src/test_model_config` for model configuration validation and JSON cases in `src/test/`. Protocol behavior is covered by `python3 tools/test-protocol.py`; XML conversion checks are in `src/test/test_xml2json.py`. For config validation changes, add or update JSON fixtures in numbered `src/test/` directories, for example `05-FanSpeed-greater-100.json`.
+Build first with `make`, then run focused tests manually. Use `src/test/test_model_config` for model configuration validation and JSON cases in `src/test/`. Protocol behavior is covered by `python3 tools/test-protocol.py`; XML conversion checks are in `src/test/test_xml2json.py`. For config validation changes, add or update JSON fixtures in numbered `src/test/` directories, for example `05-FanSpeed-greater-100.json`. The hardware-free `src/test/test_victus_ramp.c` checks smoothing, critical-temperature response, and skipping NVML for a suspended GPU; its opening comment has build instructions.
+
+## Remotes
+
+`origin` is the personal fork, `https://github.com/dunsparce9/nbfc-linux.git`.
+`main` tracks `origin/main`. Fetch and merge changes from `upstream`,
+`https://github.com/nbfc-linux/nbfc-linux.git`, but never push to upstream.
+Its local push URL is deliberately disabled; keep that protection in place.
 
 ## Commit & Pull Request Guidelines
 

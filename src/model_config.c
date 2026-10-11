@@ -38,7 +38,7 @@ static inline Error int8_t_FromJson(int8_t* out, const nx_json* node) {
   Error e = int_FromJson(&val, node);
   e_check();
   if (val < INT8_MIN || val > INT8_MAX)
-    return err_stringf("Value not in range (%d - %d): %d", INT8_MIN, INT8_MAX, val);
+    return err_stringf("Value not in range (%d - %d): %ld", INT8_MIN, INT8_MAX, (long) val);
   *out = (int8_t) val;
   return err_success();
 }
@@ -48,7 +48,7 @@ static inline Error uint8_t_FromJson(uint8_t* out, const nx_json* node) {
   Error e = int_FromJson(&val, node);
   e_check();
   if (val < 0 || val > UINT8_MAX)
-    return err_stringf("Value not in range (%d - %d): %d", 0, UINT8_MAX, val);
+    return err_stringf("Value not in range (%d - %d): %ld", 0, UINT8_MAX, (long) val);
   *out = (uint8_t) val;
   return err_success();
 }
@@ -58,7 +58,7 @@ static inline Error int16_t_FromJson(int16_t* out, const nx_json* node) {
   Error e = int_FromJson(&val, node);
   e_check();
   if (val < INT16_MIN || val > INT16_MAX)
-    return err_stringf("Value not in range (%d - %d): %d", INT16_MIN, INT16_MAX, val);
+    return err_stringf("Value not in range (%d - %d): %ld", INT16_MIN, INT16_MAX, (long) val);
   *out = (int16_t) val;
   return err_success();
 }
@@ -68,7 +68,7 @@ static inline Error uint16_t_FromJson(uint16_t* out, const nx_json* node) {
   Error e = int_FromJson(&val, node);
   e_check();
   if (val < 0 || val > UINT16_MAX)
-    return err_stringf("Value not in range (%d - %d): %d", 0, UINT16_MAX, val);
+    return err_stringf("Value not in range (%d - %d): %ld", 0, UINT16_MAX, (long) val);
   *out = (uint16_t) val;
   return err_success();
 }
@@ -330,7 +330,7 @@ static Error array_of_FromJson(FromJson_Callback callback, void** v_data, array_
 }
 
 #define define_array_of_T_FromJson(T) \
-static inline Error array_of_##T##_FromJson(array_of(T)* v, const nx_json *json) { \
+static inline Error array_of_##T##_FromJson(array_of(T)* v, const nx_json* json) { \
   return array_of_FromJson((FromJson_Callback*) T ## _FromJson, (void**) &v->data, &v->size, sizeof(T), json); \
 }
 
@@ -348,12 +348,12 @@ define_array_of_T_FromJson(FanTemperatureSourceConfig)
 // ============================================================================
 
 static const TemperatureThreshold _Config_DefaultTemperatureThresholds[] = {
-  {60,  0,   0, 255},
-  {63, 48,  10, 255},
-  {66, 55,  20, 255},
-  {68, 59,  50, 255},
-  {71, 63,  70, 255},
-  {75, 67, 100, 255},
+  {60,  0,   0, {true, true, true}},
+  {63, 48,  10, {true, true, true}},
+  {66, 55,  20, {true, true, true}},
+  {68, 59,  50, {true, true, true}},
+  {71, 63,  70, {true, true, true}},
+  {75, 67, 100, {true, true, true}},
 };
 
 static const array_of_const(TemperatureThreshold) Config_DefaultTemperatureThresholds = {
@@ -362,12 +362,12 @@ static const array_of_const(TemperatureThreshold) Config_DefaultTemperatureThres
 };
 
 static const TemperatureThreshold _Config_DefaultLegacyTemperatureThresholds[] = {
-  {0,   0,   0, 255},
-  {60, 48,  10, 255},
-  {63, 55,  20, 255},
-  {66, 59,  50, 255},
-  {68, 63,  70, 255},
-  {71, 67, 100, 255},
+  {0,   0,   0, {true, true, true}},
+  {60, 48,  10, {true, true, true}},
+  {63, 55,  20, {true, true, true}},
+  {66, 59,  50, {true, true, true}},
+  {68, 63,  70, {true, true, true}},
+  {71, 67, 100, {true, true, true}},
 };
 
 static const array_of_const(TemperatureThreshold) Config_DefaultLegacyTemperatureThresholds = {
@@ -393,6 +393,16 @@ static array_of(FanSpeedPercentageOverride) Config_DefaultFanSpeedPercentageOver
 void ModelConfig_Free(ModelConfig* c) {
   Mem_Free((char*) c->NotebookModel);
   Mem_Free((char*) c->Author);
+  Mem_Free((char*) c->Sponsor.Name);
+  Mem_Free((char*) c->Sponsor.Description);
+  Mem_Free((char*) c->Sponsor.URL);
+  Mem_Free((char*) c->Sponsor.BannerURL);
+
+  for_each_array(str*, s, c->FirmwareFingerprint) {
+    Mem_Free((char*) *s);
+  }
+
+  Mem_Free(c->FirmwareFingerprint.data);
 
   for_each_array(FanConfiguration*, f, c->FanConfigurations) {
     Mem_Free((char*) f->FanDisplayName);
@@ -443,7 +453,7 @@ Error TemperatureThresholds_Validate(
   bool has_100_FanSpeed = false;
 
   for_each_array(TemperatureThreshold*, t, *TemperatureThresholds) {
-    Trace_Push(trace, "TemperatureThresholds[%d]", PTR_DIFF(t, TemperatureThresholds->data));
+    Trace_Push(trace, "TemperatureThresholds[%zd]", PTR_DIFF(t, TemperatureThresholds->data));
 
     e = TemperatureThreshold_ValidateFields(t);
     e_check();
@@ -479,14 +489,17 @@ Error TemperatureThresholds_Validate(
   return err_success();
 }
 
+#define ERR_KEY_CANNOT_BE_USED_WITH(KEY1, KEY2, VALUE) \
+  err_stringf("%s: Cannot be used with %s == %s", KEY1, KEY2, VALUE)
+
 static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguration* r) {
-  const bool AcpiMethod                  = RegisterWriteConfiguration_IsSet_AcpiMethod(r);
-  const bool ResetAcpiMethod             = RegisterWriteConfiguration_IsSet_ResetAcpiMethod(r);
-  const bool LuaCode                     = RegisterWriteConfiguration_IsSet_LuaCode(r);
-  const bool ResetLuaCode                = RegisterWriteConfiguration_IsSet_ResetLuaCode(r);
-  const bool Register                    = RegisterWriteConfiguration_IsSet_Register(r);
-  const bool Value                       = RegisterWriteConfiguration_IsSet_Value(r);
-  const bool ResetValue                  = RegisterWriteConfiguration_IsSet_ResetValue(r);
+  const bool AcpiMethod                  = r->isset.AcpiMethod;
+  const bool ResetAcpiMethod             = r->isset.ResetAcpiMethod;
+  const bool LuaCode                     = r->isset.LuaCode;
+  const bool ResetLuaCode                = r->isset.ResetLuaCode;
+  const bool Register                    = r->isset.Register;
+  const bool Value                       = r->isset.Value;
+  const bool ResetValue                  = r->isset.ResetValue;
   const bool ResetRequired               = r->ResetRequired;
   const RegisterWriteMode WriteMode      = r->WriteMode;
   const RegisterWriteMode ResetWriteMode = r->ResetWriteMode;
@@ -496,20 +509,20 @@ static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguratio
       return err_stringf("%s: %s", "AcpiMethod", "Missing option");
 
     if (LuaCode)
-      return err_string("LuaCode: Cannot be used with WriteMode == Call");
+      return ERR_KEY_CANNOT_BE_USED_WITH("LuaCode", "WriteMode", "Call");
 
     if (Value)
-      return err_string("Value: Cannot be used with WriteMode == Call");
+      return ERR_KEY_CANNOT_BE_USED_WITH("Value", "WriteMode", "Call");
   }
   else if (WriteMode == RegisterWriteMode_Lua) {
     if (! LuaCode)
       return err_stringf("%s: %s", "LuaCode", "Missing option");
 
     if (AcpiMethod)
-      return err_string("AcpiMethod: Cannot be used with WriteMode == Lua");
+      return ERR_KEY_CANNOT_BE_USED_WITH("AcpiMethod", "WriteMode", "Lua");
 
     if (Value)
-      return err_string("Value: Cannot be used with WriteMode == Lua");
+      return ERR_KEY_CANNOT_BE_USED_WITH("Value", "WriteMode", "Lua");
   }
   else {
     if (! Register)
@@ -519,10 +532,10 @@ static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguratio
       return err_stringf("%s: %s", "Value", "Missing option");
 
     if (AcpiMethod)
-      return err_string("AcpiMethod: Cannot be used with WriteMode == Set/And/Or");
+      return ERR_KEY_CANNOT_BE_USED_WITH("AcpiMethod", "WriteMode", "Set/And/Or");
 
     if (LuaCode)
-      return err_string("LuaCode: Cannot be used with WriteMode == Set/And/Or");
+      return ERR_KEY_CANNOT_BE_USED_WITH("LuaCode", "WriteMode", "Set/And/Or");
   }
 
   if (ResetRequired) {
@@ -531,20 +544,20 @@ static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguratio
         return err_stringf("%s: %s", "ResetAcpiMethod", "Missing option");
 
       if (ResetLuaCode)
-        return err_string("ResetLuaCode: Cannot be used with ResetWriteMode == Call");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetLuaCode", "ResetWriteMode", "Call");
 
       if (ResetValue)
-        return err_string("ResetValue: Cannot be used with ResetWriteMode == Call");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetValue", "ResetWriteMode", "Call");
     }
     else if (ResetWriteMode == RegisterWriteMode_Lua) {
       if (! ResetLuaCode)
         return err_stringf("%s: %s", "ResetLuaCode", "Missing option");
 
       if (ResetAcpiMethod)
-        return err_string("ResetAcpiMethod: Cannot be used with ResetWriteMode == Lua");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetAcpiMethod", "ResetWriteMode", "Lua");
 
       if (ResetValue)
-        return err_string("ResetValue: Cannot be used with ResetWriteMode == Lua");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetValue", "ResetWriteMode", "Lua");
     }
     else {
       if (! Register)
@@ -554,10 +567,10 @@ static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguratio
         return err_stringf("%s: %s", "ResetValue", "Missing option");
 
       if (ResetAcpiMethod)
-        return err_string("ResetAcpiMethod: Cannot be used with ResetWriteMode == Set/And/Or");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetAcpiMethod", "ResetWriteMode", "Set/And/Or");
 
       if (ResetLuaCode)
-        return err_string("ResetLuaCode: Cannot be used with ResetWriteMode == Set/And/Or");
+        return ERR_KEY_CANNOT_BE_USED_WITH("ResetLuaCode", "ResetWriteMode", "Set/And/Or");
     }
   }
   else {
@@ -569,10 +582,10 @@ static Error RegisterWriteConfiguration_Validate(const RegisterWriteConfiguratio
     */
 
     if (ResetLuaCode)
-      return err_string("ResetLuaCode: Cannot be used with ResetRequired == false");
+      return ERR_KEY_CANNOT_BE_USED_WITH("ResetLuaCode", "ResetRequired", "false");
 
     if (ResetAcpiMethod)
-      return err_string("ResetAcpiMethod: Cannot be used with ResetRequired == false");
+      return ERR_KEY_CANNOT_BE_USED_WITH("ResetAcpiMethod", "ResetRequired", "false");
   }
 
   const bool WriteMode_Needs_Register = (
@@ -601,8 +614,15 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
   e = ModelConfig_ValidateFields(c);
   e_goto(err);
 
+  if (c->isset.Sponsor) {
+    Trace_Push(trace, "Sponsor");
+    e = Sponsor_ValidateFields(&c->Sponsor);
+    e_goto(err);
+    Trace_Pop(trace);
+  }
+
   for_each_array(RegisterWriteConfiguration*, r, c->RegisterWriteConfigurations) {
-    Trace_Push(trace, "RegisterWriteConfigurations[%d]", PTR_DIFF(r, c->RegisterWriteConfigurations.data));
+    Trace_Push(trace, "RegisterWriteConfigurations[%zd]", PTR_DIFF(r, c->RegisterWriteConfigurations.data));
 
     e = RegisterWriteConfiguration_ValidateFields(r);
     e_goto(err);
@@ -614,7 +634,7 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
   }
 
   for_each_array(FanConfiguration*, f, c->FanConfigurations) {
-    Trace_Push(trace, "FanConfigurations[%d]", PTR_DIFF(f, c->FanConfigurations.data));
+    Trace_Push(trace, "FanConfigurations[%zd]", PTR_DIFF(f, c->FanConfigurations.data));
 
     e = FanConfiguration_ValidateFields(f);
     e_goto(err);
@@ -622,7 +642,7 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
     // Add a default FanDisplayName
     if (f->FanDisplayName == NULL) {
       char fan_name[32];
-      snprintf(fan_name, sizeof(fan_name), "Fan #%d", PTR_DIFF(f, c->FanConfigurations.data));
+      snprintf(fan_name, sizeof(fan_name), "Fan #%zd", PTR_DIFF(f, c->FanConfigurations.data));
       f->FanDisplayName = Mem_Strdup(fan_name);
     }
 
@@ -630,9 +650,9 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
     // "ResetAcpiMethod" and "ResetLuaCode" is set
     if (f->ResetRequired) {
       const int reset_group = (
-        FanConfiguration_IsSet_FanSpeedResetValue(f) +
-        FanConfiguration_IsSet_ResetAcpiMethod(f) +
-        FanConfiguration_IsSet_ResetLuaCode(f)
+        f->isset.FanSpeedResetValue +
+        f->isset.ResetAcpiMethod +
+        f->isset.ResetLuaCode
       );
 
       if (reset_group == 0) {
@@ -648,18 +668,18 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
       /* This is actually the right behaviour, but too many old config files
        * have FanSpeedResetValue set even if ResetRequired is false.
        *
-      if (FanConfiguration_IsSet_FanSpeedResetValue(f)) {
+      if (f->isset.FanSpeedResetValue) {
         e = err_string("FanSpeedResetValue: Cannot be used with ResetRequired == false");
         goto err;
       }
        */
 
-      if (FanConfiguration_IsSet_ResetAcpiMethod(f)) {
+      if (f->isset.ResetAcpiMethod) {
         e = err_string("ResetAcpiMethod: Cannot be used with ResetRequired == false");
         goto err;
       }
 
-      if (FanConfiguration_IsSet_ResetLuaCode(f)) {
+      if (f->isset.ResetLuaCode) {
         e = err_string("ResetLuaCode: Cannot be used with ResetRequired == false");
         goto err;
       }
@@ -667,9 +687,9 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
 
     // Ensure that one (and only one) of "WriteRegister", "WriteAcpiMethod" and "WriteLuaCode" is set
     const int write_group = (
-      FanConfiguration_IsSet_WriteRegister(f) +
-      FanConfiguration_IsSet_WriteAcpiMethod(f) +
-      FanConfiguration_IsSet_WriteLuaCode(f)
+      f->isset.WriteRegister +
+      f->isset.WriteAcpiMethod +
+      f->isset.WriteLuaCode
     );
 
     if (write_group == 0) {
@@ -683,9 +703,9 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
 
     // Ensure that one (and only one) of "ReadRegister", "ReadAcpiMethod" and "ReadLuaCode" is set
     const int read_group = (
-      FanConfiguration_IsSet_ReadRegister(f) +
-      FanConfiguration_IsSet_ReadAcpiMethod(f) +
-      FanConfiguration_IsSet_ReadLuaCode(f)
+      f->isset.ReadRegister +
+      f->isset.ReadAcpiMethod +
+      f->isset.ReadLuaCode
     );
 
     if (read_group == 0) {
@@ -703,12 +723,12 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
     }
 
     if (f->IndependentReadMinMaxValues) {
-      if (! FanConfiguration_IsSet_MinSpeedValueRead(f)) {
+      if (! f->isset.MinSpeedValueRead) {
         e = err_stringf("%s: %s", "MinSpeedValueRead", "Missing option");
         goto err;
       }
 
-      if (! FanConfiguration_IsSet_MaxSpeedValueRead(f)) {
+      if (! f->isset.MaxSpeedValueRead) {
         e = err_stringf("%s: %s", "MaxSpeedValueRead", "Missing option");
         goto err;
       }
@@ -720,7 +740,7 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
     }
 
     for_each_array(FanSpeedPercentageOverride* , o, f->FanSpeedPercentageOverrides) {
-      Trace_Push(trace, "FanSpeedPercentageOverrides[%d]", PTR_DIFF(o, f->FanSpeedPercentageOverrides.data));
+      Trace_Push(trace, "FanSpeedPercentageOverrides[%zd]", PTR_DIFF(o, f->FanSpeedPercentageOverrides.data));
 
       e = FanSpeedPercentageOverride_ValidateFields(o);
       e_goto(err);
@@ -741,7 +761,12 @@ Error ModelConfig_Validate(Trace* trace, ModelConfig* c) {
         );
     }
 
-    e = TemperatureThresholds_Validate(trace, &f->TemperatureThresholds, c->CriticalTemperature);
+    // FanConfiguration.CriticalTemperature overrides ModelConfig.CriticalTemperature
+    int criticalTemperature = c->CriticalTemperature;
+    if (f->isset.CriticalTemperature)
+      criticalTemperature = f->CriticalTemperature;
+
+    e = TemperatureThresholds_Validate(trace, &f->TemperatureThresholds, criticalTemperature);
     e_goto(err);
 
     Trace_Pop(trace);
@@ -778,22 +803,22 @@ err:
 Error ModelConfig_FindAndLoad(ModelConfig* config, char* resolved, const char* file) {
   // Try absolute path
   snprintf(resolved, PATH_MAX, "%s", file);
-  if (file_exists(file))
+  if (File_Exists(file))
     return ModelConfig_FromFile(config, file);
 
   // Try NBFC_MODEL_CONFIGS_DIR_MUTABLE (without additional ".json")
   snprintf(resolved, PATH_MAX, "%s/%s", NBFC_MODEL_CONFIGS_DIR_MUTABLE, file);
-  if (file_exists(resolved))
+  if (File_Exists(resolved))
     return ModelConfig_FromFile(config, resolved);
 
   // Try NBFC_MODEL_CONFIGS_DIR_MUTABLE (with additional ".json")
   snprintf(resolved, PATH_MAX, "%s/%s.json", NBFC_MODEL_CONFIGS_DIR_MUTABLE, file);
-  if (file_exists(resolved))
+  if (File_Exists(resolved))
     return ModelConfig_FromFile(config, resolved);
 
   // Try NBFC_MODEL_CONFIGS_DIR (without additional ".json")
   snprintf(resolved, PATH_MAX, "%s/%s", NBFC_MODEL_CONFIGS_DIR, file);
-  if (file_exists(resolved))
+  if (File_Exists(resolved))
     return ModelConfig_FromFile(config, resolved);
 
   // Try NBFC_MODEL_CONFIGS_DIR (with additional ".json")

@@ -107,7 +107,7 @@ static Error Server_Command_Set_Fan(int socket, const nx_json* json) {
   nx_json *o = create_json_object(NULL, &root);
   create_json_string("Status", o, "OK");
 
-  Error e = Protocol_Send_Json(socket, o);
+  Error e = Protocol_SendJson(socket, o);
   nx_json_free(o);
   return e;
 }
@@ -125,7 +125,7 @@ static Error Server_Command_Status(int socket, const nx_json* json) {
   nx_json root = {0};
   nx_json *o = create_json_object(NULL, &root);
   create_json_integer("PID", o, getpid());
-  create_json_string("SelectedConfigId", o, service_config.SelectedConfigId);
+  create_json_string("SelectedConfigId", o, Service_ServiceConfig.SelectedConfigId);
   create_json_bool("ReadOnly", o, options.read_only);
   nx_json* fans = create_json_array("Fans", o);
 
@@ -134,6 +134,7 @@ static Error Server_Command_Status(int socket, const nx_json* json) {
     nx_json* fan_json = create_json_object(NULL, fans);
     create_json_string("Name", fan_json, fan->fanConfig->FanDisplayName);
     create_json_double("Temperature", fan_json, ftc->Temperature);
+    create_json_double("CriticalTemperature", fan_json, fan->criticalTemperature);
     create_json_bool("AutoMode", fan_json, (fan->mode == Fan_ModeAuto));
     create_json_bool("Critical", fan_json, fan->isCritical);
     create_json_double("CurrentSpeed", fan_json, Fan_GetCurrentSpeed(fan));
@@ -142,7 +143,7 @@ static Error Server_Command_Status(int socket, const nx_json* json) {
     create_json_integer("SpeedSteps", fan_json, Fan_GetSpeedSteps(fan));
   }
 
-  Error e = Protocol_Send_Json(socket, o);
+  Error e = Protocol_SendJson(socket, o);
   nx_json_free(o);
   return e;
 }
@@ -158,7 +159,7 @@ Error Server_Init(void) {
 
   memset(&Server_Address, 0, sizeof(Server_Address));
   Server_Address.sun_family = AF_UNIX;
-  snprintf(Server_Address.sun_path, sizeof(Server_Address.sun_path), NBFC_SOCKET_PATH);
+  snprintf(Server_Address.sun_path, sizeof(Server_Address.sun_path), "%s", NBFC_SOCKET_PATH);
 
   if ((Server_FD = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
     e = err_stdlib("socket()");
@@ -366,7 +367,7 @@ static void Server_HandleClient(Client* client) {
 end:
   nx_json_free(json);
   if (e)
-    Protocol_Send_Error(client->fd, err_print_all(e));
+    Protocol_SendError(client->fd, err_print_all(e));
   close(client->fd);
   client->active = false;
 }

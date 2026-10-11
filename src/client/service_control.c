@@ -11,7 +11,6 @@
 #include <sys/socket.h> // connect, socket
 #include <sys/un.h>     // sockaddr_un
 
-#include "../log.h"
 #include "../sleep.h"
 #include "../nbfc.h"
 #include "../log.h"
@@ -21,12 +20,11 @@
 #include "../protocol.h"
 #include "../nxjson_utils.h"
 #include "../service_config.h"
-#include "../file_utils.h"
 
-pid_t Service_Get_PID(void) {
+pid_t Service_GetPID(void) {
   const char* err;
   char buf[32];
-  if (! slurp_file(buf, sizeof(buf), NBFC_PID_FILE).ok) {
+  if (! File_Read(buf, sizeof(buf), NBFC_PID_FILE).ok) {
     if (errno == ENOENT)
       return -1;
     else {
@@ -59,19 +57,19 @@ Error Client_Communicate(const nx_json* in, char** buf, const nx_json** out) {
 
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sun_family = AF_UNIX;
-  snprintf(serv_addr.sun_path, sizeof(serv_addr.sun_path), NBFC_SOCKET_PATH);
+  snprintf(serv_addr.sun_path, sizeof(serv_addr.sun_path), "%s", NBFC_SOCKET_PATH);
 
-  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+  if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
     e = err_string(NBFC_SOCKET_PATH);
     e = err_chain_stdlib(e, "connect()");
     goto error;
   }
 
-  e = Protocol_Send_Json(sock, in);
+  e = Protocol_SendJson(sock, in);
   if (e)
     goto error;
 
-  e = Protocol_Receive_Json(sock, buf, out);
+  e = Protocol_ReceiveJson(sock, buf, out);
   if (e)
     goto error;
 
@@ -80,9 +78,9 @@ error:
   return e;
 }
 
-void ServiceConfig_Load(void) {
-  if (! file_exists(NBFC_SERVICE_CONFIG)) {
-    memset(&service_config, 0, sizeof(service_config)); // Clear values
+void ServiceConfig_Load(ServiceConfig* service_config) {
+  if (! File_Exists(NBFC_SERVICE_CONFIG)) {
+    memset(service_config, 0, sizeof(ServiceConfig)); // Clear values
     return;
   }
 
@@ -92,7 +90,7 @@ void ServiceConfig_Load(void) {
   if (e)
     goto error;
 
-  e = ServiceConfig_FromJson(&service_config, js);
+  e = ServiceConfig_FromJson(service_config, js);
   nx_json_free(js);
 
   if (e) {
@@ -102,17 +100,25 @@ error:
   }
 }
 
-Error ServiceInfo_TryLoad(ServiceInfo* service_info) {
+Error ServiceInfo_TryLoadJson(char** buf, const nx_json** out) {
   Error e;
   nx_json root = {0};
   nx_json* in = create_json_object(NULL, &root);
   create_json_string("Command", in, "status");
+  e = Client_Communicate(in, buf, out);
+  nx_json_free(in);
+  return e;
+}
 
+Error ServiceInfo_TryLoad(ServiceInfo* service_info) {
+  Error e;
   char* buf = NULL;
   const nx_json* out = NULL;
-  e = Client_Communicate(in, &buf, &out);
-  if (e)
+
+  e = ServiceInfo_TryLoadJson(&buf, &out);
+  if (e) {
     goto error;
+  }
 
   if (out->type != NX_JSON_OBJECT) {
     e = err_string("Not a JSON object");
@@ -145,26 +151,36 @@ Error ServiceInfo_TryLoad(ServiceInfo* service_info) {
   }
 
 error:
-  nx_json_free(in);
   nx_json_free(out);
   Mem_Free(buf);
 
   return e;
 }
 
-void Service_LoadAllConfigFiles(ModelConfig* model_config) {
+void ServiceInfo_Free(ServiceInfo* service_info) {
+  Mem_Free((char*) service_info->SelectedConfigId);
+
+  for_each_array(FanInfo*, fan, service_info->Fans) {
+    Mem_Free((char*) fan->Name);
+  }
+  Mem_Free(service_info->Fans.data);
+
+  memset(service_info, 0, sizeof(*service_info));
+}
+
+void Service_LoadAllConfigFiles(ServiceConfig* service_config, ModelConfig* model_config) {
   Error e;
   Trace trace = {0};
   char path[PATH_MAX];
 
-  e = ServiceConfig_Init(NBFC_SERVICE_CONFIG);
+  e = ServiceConfig_FromFile(service_config, NBFC_SERVICE_CONFIG);
   if (e) {
     Log_Error("%s", err_print_all(e));
     Log_Error("This command needs a valid and configured `%s`", NBFC_SERVICE_CONFIG);
     exit(NBFC_EXIT_FAILURE);
   }
 
-  e = ModelConfig_FindAndLoad(model_config, path, service_config.SelectedConfigId);
+  e = ModelConfig_FindAndLoad(model_config, path, service_config->SelectedConfigId);
   if (e) {
     Log_Error("%s", err_print_all(e));
     Log_Error("This command needs a valid model configuration (%s)", path);
@@ -181,7 +197,7 @@ void Service_LoadAllConfigFiles(ModelConfig* model_config) {
 }
 
 int Service_Start(bool read_only) {
-  pid_t pid = Service_Get_PID();
+  pid_t pid = Service_GetPID();
   if (pid != -1) {
     Log_Info("Service already running (pid: %d)", pid);
     return NBFC_EXIT_SUCCESS;
@@ -201,13 +217,16 @@ int Service_Start(bool read_only) {
     return NBFC_EXIT_FAILURE;
   }
 
+  // The NBFC service uses the same return statuses as the NBFC client,
+  // so the result can be returned directly.
   return WEXITSTATUS(ret);
 }
 
 int Service_Stop(void) {
-  pid_t pid = Service_Get_PID();
+  pid_t pid = Service_GetPID();
   if (pid == -1) {
     Log_Error("Service not running");
+    // Returning success if the service is not running is intentional.
     return NBFC_EXIT_SUCCESS;
   }
 

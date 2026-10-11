@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/types.h> // ssize_t
 
 #define STRINGIFY_(S)     #S
@@ -13,7 +14,7 @@
 #define MIN(A, B)         ((A) < (B) ? (A) : (B))
 #define STRLEN(S)         (sizeof(S) - 1)
 
-#define PTR_DIFF(A, B)    ((int) (A - B))
+#define PTR_DIFF(A, B)    ((size_t) (A - B))
 
 #define ARRAY_SIZE(A)     (sizeof(A) / sizeof(*A))
 #define ARRAY_SSIZE(A)    ((ssize_t) ARRAY_SIZE(A))
@@ -29,8 +30,11 @@
 #define for_each_array(TYPE, VAR, ARRAY) \
   for (TYPE VAR = (ARRAY).data; VAR != (ARRAY).data + (ARRAY).size; ++VAR)
 
-#define for_each_array_reverse(TYPE, VAR, ARRAY) \
-  for (TYPE VAR = (ARRAY).data + (ARRAY).size; --VAR != (ARRAY).data;)
+#define array_calloc(TYPE, ARRAY, SIZE) \
+  (ARRAY).data = (TYPE*) Mem_Calloc((SIZE), sizeof(TYPE))
+
+#define array_realloc(TYPE, ARRAY, SIZE) \
+  (ARRAY).data = (TYPE*) Mem_Realloc((ARRAY).data, sizeof(TYPE) * (SIZE))
 
 typedef size_t array_size_t;
 
@@ -47,9 +51,13 @@ typedef size_t array_size_t;
     array_size_t size;                                \
   }
 
+typedef const char* str;
+declare_array_of(str);
 declare_array_of(array_size_t);
+declare_array_of(double);
 declare_array_of(float);
 declare_array_of(int);
+declare_array_of(uint8_t);
 
 #ifndef NDEBUG
 #define debug(...) fprintf(stderr, __VA_ARGS__)
@@ -63,12 +71,12 @@ declare_array_of(int);
 #define NBFC_PACKED_ENUM  __attribute__((packed))
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
-#define PRINTF_LIKE(fmt, args) __attribute__((format(printf, fmt, args)))
+#define NBFC_PRINTF_LIKE(fmt, args) __attribute__((format(printf, fmt, args)))
 #else
 #define NBFC_PACKED_ENUM
 #define likely(x) (x)
 #define unlikely(x) (x)
-#define PRINTF_LIKE(fmt, args)
+#define NBFC_PRINTF_LIKE(fmt, args)
 #endif
 
 #endif

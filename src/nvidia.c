@@ -23,7 +23,7 @@ typedef int nvmlReturn_t;
 // NVML-related globals used for dynamically accessing GPU temperature:
 // ============================================================================
 
-static void *Nvidia_DlHandle = NULL;
+static void* Nvidia_DlHandle = NULL;
 static nvmlDevice_t Nvidia_Device;
 static bool Nvidia_Initialized = false;
 
@@ -52,11 +52,11 @@ Nvidia_Error Nvidia_Load(void) {
   if (!Nvidia_nvmlShutdown_fn)
     return Nvidia_Error_DlOpen;
 
-  Nvidia_nvmlDeviceGetHandleByIndex_fn = (nvmlReturn_t (*)(unsigned int, nvmlDevice_t *)) dlsym(Nvidia_DlHandle, "nvmlDeviceGetHandleByIndex");
+  Nvidia_nvmlDeviceGetHandleByIndex_fn = (nvmlReturn_t (*)(unsigned int, nvmlDevice_t*)) dlsym(Nvidia_DlHandle, "nvmlDeviceGetHandleByIndex");
   if (!Nvidia_nvmlDeviceGetHandleByIndex_fn)
     return Nvidia_Error_DlOpen;
 
-  Nvidia_nvmlDeviceGetTemperature_fn = (nvmlReturn_t (*)(nvmlDevice_t, unsigned int, unsigned int *)) dlsym(Nvidia_DlHandle, "nvmlDeviceGetTemperature");
+  Nvidia_nvmlDeviceGetTemperature_fn = (nvmlReturn_t (*)(nvmlDevice_t, unsigned int, unsigned int*)) dlsym(Nvidia_DlHandle, "nvmlDeviceGetTemperature");
   if (!Nvidia_nvmlDeviceGetTemperature_fn)
     return Nvidia_Error_DlOpen;
 
@@ -102,7 +102,7 @@ bool Nvidia_IsRuntimeSuspended(const char* runtime_status_file) {
     return false;
 
   char buf[32];
-  file_op_result res = slurp_file(buf, sizeof(buf), runtime_status_file);
+  FileResult res = File_Read(buf, sizeof(buf), runtime_status_file);
   return res.ok && ! strncmp(buf, "suspended", 9);
 }
 

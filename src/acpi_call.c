@@ -9,6 +9,7 @@
 #include "macros.h"
 #include "process.h"
 #include "file_utils.h"
+#include "str_functions.h"
 
 #define ACPI_CALL_FILE         "/proc/acpi/call"
 #define ACPI_CALL_MODPROBE_CMD "modprobe acpi_call"
@@ -19,7 +20,7 @@ struct AcpiCall_Path {
   uint16_t path[ACPI_CALL_PATH_MAX];
 };
 
-static bool AcpiCall_Path_Equals(struct AcpiCall_Path* a, struct AcpiCall_Path* b) {
+static bool AcpiCall_PathEquals(struct AcpiCall_Path* a, struct AcpiCall_Path* b) {
   const uint64_t* const a_as_integer = (const uint64_t*) a;
   const uint64_t* const b_as_integer = (const uint64_t*) b;
 
@@ -40,7 +41,7 @@ static bool AcpiCall_Path_Equals(struct AcpiCall_Path* a, struct AcpiCall_Path* 
 }
 
 Error AcpiCall_Open(void) {
-  if (file_exists(ACPI_CALL_FILE))
+  if (File_Exists(ACPI_CALL_FILE))
     return err_success();
 
   return Process_Call(ACPI_CALL_MODPROBE_CMD);
@@ -48,23 +49,21 @@ Error AcpiCall_Open(void) {
 
 Error AcpiCall_CallRaw(const char* cmd, size_t cmdlen, char** out) {
   static char result[4096];
-  file_op_result res;
+  FileResult res;
 
   // Write command to ACPI_CALL_FILE
-  res = write_file(ACPI_CALL_FILE, O_WRONLY, 0, cmd, cmdlen);
+  res = File_Write(ACPI_CALL_FILE, O_WRONLY, 0, cmd, cmdlen);
 
   if (! res.ok)
     return err_stdlib(ACPI_CALL_FILE);
 
   // Read the contents of ACPI_CALL_FILE into `result`
-  res = slurp_file(result, sizeof(result), ACPI_CALL_FILE);
+  res = File_Read(result, sizeof(result), ACPI_CALL_FILE);
 
   if (! res.ok)
     return err_stdlib(ACPI_CALL_FILE);
 
-  // Strip whitespace from response
-  while (res.len && result[res.len] < 32)
-    result[res.len--] = '\0';
+  str_rstrip_whitespace(result, res.len);
 
   // Check for empty response
   if (! result[0]) {
@@ -136,7 +135,7 @@ Error AcpiCall_Call(const char* cmd, uint64_t value, uint64_t* out) {
   return err_success();
 }
 
-static Error AcpiCall_Parse_Path(const char* path, struct AcpiCall_Path* out) {
+static Error AcpiCall_ParsePath(const char* path, struct AcpiCall_Path* out) {
   uint64_t number;
   bool having_number = false;
 
@@ -184,7 +183,7 @@ Error AcpiCall_GetInt(const char* result, const char* path, uint64_t* out) {
   struct AcpiCall_Path path_array = {0};
   struct AcpiCall_Path stack = {0};
 
-  e = AcpiCall_Parse_Path(path, &path_array);
+  e = AcpiCall_ParsePath(path, &path_array);
   if (e)
     return e;
 
@@ -223,7 +222,7 @@ Error AcpiCall_GetInt(const char* result, const char* path, uint64_t* out) {
     case '7': /* fall through */
     case '8': /* fall through */
     case '9':
-      if (AcpiCall_Path_Equals(&stack, &path_array)) {
+      if (AcpiCall_PathEquals(&stack, &path_array)) {
         // We don't check for errors like overflow
         *out = strtoull(result, NULL, 0);
         return err_success();

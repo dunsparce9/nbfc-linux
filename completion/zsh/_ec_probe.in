@@ -4,19 +4,34 @@
 # crazy-complete: A tool that creates robust and reliable autocompletion scripts for Bash, Fish and Zsh.
 # For more information, visit: https://github.com/crazy-complete/crazy-complete
 
-_ec_probe__query() {
+_ec_probe_complete_map_register() {
+  [[ ${#_EC_PROBE_MAP_FILE[@]} -gt 0 ]] && \
+    grep '=' "${_EC_PROBE_MAP_FILE[-1]}" 2>/dev/null | cut -d= -f1
+}
 
-  __zsh_query_contains() {
-    local arg='' key="$1"; shift
-    for arg; do [[ "$key" == "$arg" ]] && return 0; done
-    return 1
-  }
+_ec_probe_complete_map_method() {
+  [[ ${#_EC_PROBE_MAP_FILE[@]} -gt 0 ]] && \
+    grep -v '=' "${_EC_PROBE_MAP_FILE[-1]}" 2>/dev/null
+}
+
+_ec_probe__query() {
 
   local cmd="$1"; shift
 
   case "$cmd" in
     get_positional)
       printf "%s" "${POSITIONALS[$1]}"
+      return 0;;
+    get_option)
+      local i=0
+
+      for (( i=0; i <= ${#HAVING_OPTIONS[@]}; ++i )); do
+        local option="${HAVING_OPTIONS[$i]}"
+        if _ec_probe__array_contains "$option" "$@"; then
+          printf "%s\n" "${OPTION_VALUES[$i]}"
+        fi
+      done
+
       return 0;;
     init)
       local -a options=(${=1})
@@ -61,7 +76,7 @@ _ec_probe__query() {
         HAVING_OPTIONS+=("${arg%%=*}")
         OPTION_VALUES+=("${arg#*=}");;
       --*)
-        if __zsh_query_contains "$arg" "${long_opts_with_arg[@]}"; then
+        if _ec_probe__array_contains "$arg" "${long_opts_with_arg[@]}"; then
           if $have_trailing_arg; then
             HAVING_OPTIONS+=("$arg")
             OPTION_VALUES+=("${args[$((++argi))]}")
@@ -78,10 +93,10 @@ _ec_probe__query() {
           local option="-${arg:$i:1}"
           local trailing_chars="${arg:$((i+1))}"
 
-          if __zsh_query_contains "$option" "${short_opts_without_arg[@]}"; then
+          if _ec_probe__array_contains "$option" "${short_opts_without_arg[@]}"; then
             HAVING_OPTIONS+=("$option")
             OPTION_VALUES+=("")
-          elif __zsh_query_contains "$option" "${short_opts_with_arg[@]}"; then
+          elif _ec_probe__array_contains "$option" "${short_opts_with_arg[@]}"; then
             if [[ -n "$trailing_chars" ]]; then
               HAVING_OPTIONS+=("$option")
               OPTION_VALUES+=("$trailing_chars")
@@ -91,7 +106,7 @@ _ec_probe__query() {
             fi
 
             continue 2
-          elif __zsh_query_contains "$option" "${short_opts_with_optional_arg[@]}"; then
+          elif _ec_probe__array_contains "$option" "${short_opts_with_optional_arg[@]}"; then
             HAVING_OPTIONS+=("$option")
             OPTION_VALUES+=("$trailing_chars") # may be empty
             continue 2
@@ -104,19 +119,49 @@ _ec_probe__query() {
   done
 }
 
+_ec_probe__array_contains() {
+  local arg='' key="$1"; shift
+  for arg; do [[ "$key" == "$arg" ]] && return 0; done
+  return 1
+}
+
+_ec_probe__exec() {
+  local item='' desc='' describe=()
+
+  while IFS=$'\t' read -r item desc; do
+    item="${item//\\/\\\\}"
+    item="${item//:/\\:}"
+    desc="${desc//\\/\\\\}"
+    [[ -n "$desc" ]] && describe+=("$item:$desc") || describe+=("$item")
+  done < <(eval "$1")
+
+  _describe '' describe
+}
+
 _ec_probe__command() {
   local items=(
     dump:'Dump all EC registers'
     load:'Load a previously made dump into the embedded controller'
     read:'Read a byte from a EC register'
     write:'Write a byte to a EC register'
+    read_bit:'Read a bit from a EC register'
+    write_bit:'Write a bit to a EC register'
     monitor:'Monitor all EC registers for changes'
     watch:'Monitor all EC registers for changes (alternative version)'
     acpi_call:'Call an ACPI method'
+    graph:'Visualize recordings made by `ec_probe monitor -r`'
+    evaluate:'Calculate correlation between registers and CPU/GPU temperature'
+    lua:'Execute a Lua file'
     shell:'Read commands from STDIN'
   )
 
   _describe -- command items
+}
+
+_ec_probe_read__REGISTER() {
+  _alternative \
+    ::'({0..255})' \
+    ::'{_ec_probe__exec _ec_probe_complete_map_register}'
 }
 
 _ec_probe() {
@@ -129,9 +174,14 @@ _ec_probe() {
     load) _ec_probe_load; return $?;;
     read) _ec_probe_read; return $?;;
     write) _ec_probe_write; return $?;;
+    read_bit) _ec_probe_read_bit; return $?;;
+    write_bit) _ec_probe_write_bit; return $?;;
     monitor) _ec_probe_monitor; return $?;;
     watch) _ec_probe_watch; return $?;;
     acpi_call) _ec_probe_acpi_call; return $?;;
+    graph) _ec_probe_graph; return $?;;
+    evaluate) _ec_probe_evaluate; return $?;;
+    lua) _ec_probe_lua; return $?;;
     shell) _ec_probe_shell; return $?;;
   esac
 
@@ -165,24 +215,80 @@ _ec_probe_load() {
 }
 
 _ec_probe_read() {
+  local opts='-w --word -m= --map= -h --help -e= --embedded-controller='
+  local HAVING_OPTIONS=() OPTION_VALUES=() POSITIONALS=() INCOMPLETE_OPTION=''
+  _ec_probe__query init "$opts" "${words[@]}"
+
+  local _EC_PROBE_MAP_FILE=()
+  IFS=$"\n" _EC_PROBE_MAP_FILE=($(_ec_probe__query get_option -m --map))
+
   local -a args=(
     '(--word -w)'{-w,--word}'[Combine two registers into one]'
+    '(--map -m)'{-m+,--map=}'[Specify map file for resolving register names]':FILE:_files
     '(--help -h)'{-h,--help}'[show this help message and exit]'
     '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
     1:command1:_ec_probe__command
-    2:'Register source':'({0..255})'
+    2:'Register source':'{_ec_probe_read__REGISTER}'
   )
   _arguments -S -s -w "${args[@]}"
 }
 
 _ec_probe_write() {
+  local opts='-w --word -m= --map= -h --help -e= --embedded-controller='
+  local HAVING_OPTIONS=() OPTION_VALUES=() POSITIONALS=() INCOMPLETE_OPTION=''
+  _ec_probe__query init "$opts" "${words[@]}"
+
+  local _EC_PROBE_MAP_FILE=()
+  IFS=$"\n" _EC_PROBE_MAP_FILE=($(_ec_probe__query get_option -m --map))
+
   local -a args=(
     '(--word -w)'{-w,--word}'[Combine two registers into one]'
+    '(--map -m)'{-m+,--map=}'[Specify map file for resolving register names]':FILE:_files
     '(--help -h)'{-h,--help}'[show this help message and exit]'
     '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
     1:command1:_ec_probe__command
-    2:'Register destination':'({0..255})'
+    2:'Register destination':'{_ec_probe_read__REGISTER}'
     3:'Value to write':"_numbers 'Value to write'"
+  )
+  _arguments -S -s -w "${args[@]}"
+}
+
+_ec_probe_read_bit() {
+  local opts='-m= --map= -h --help -e= --embedded-controller='
+  local HAVING_OPTIONS=() OPTION_VALUES=() POSITIONALS=() INCOMPLETE_OPTION=''
+  _ec_probe__query init "$opts" "${words[@]}"
+
+  local _EC_PROBE_MAP_FILE=()
+  IFS=$"\n" _EC_PROBE_MAP_FILE=($(_ec_probe__query get_option -m --map))
+
+  local -a args=(
+    '(--map -m)'{-m+,--map=}'[Specify map file for resolving register names]':FILE:_files
+    '(--help -h)'{-h,--help}'[show this help message and exit]'
+    '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
+    1:command1:_ec_probe__command
+    2:'Register source':'{_ec_probe_read__REGISTER}'
+    3:'Bit offset (0-7)':'({0..7})'
+  )
+  _arguments -S -s -w "${args[@]}"
+}
+
+_ec_probe_write_bit() {
+  local opts='-d --dry -m= --map= -h --help -e= --embedded-controller='
+  local HAVING_OPTIONS=() OPTION_VALUES=() POSITIONALS=() INCOMPLETE_OPTION=''
+  _ec_probe__query init "$opts" "${words[@]}"
+
+  local _EC_PROBE_MAP_FILE=()
+  IFS=$"\n" _EC_PROBE_MAP_FILE=($(_ec_probe__query get_option -m --map))
+
+  local -a args=(
+    '(--dry -d)'{-d,--dry}'[Print the resulting value without writing it]'
+    '(--map -m)'{-m+,--map=}'[Specify map file for resolving register names]':FILE:_files
+    '(--help -h)'{-h,--help}'[show this help message and exit]'
+    '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
+    1:command1:_ec_probe__command
+    2:'Register destination':'{_ec_probe_read__REGISTER}'
+    3:'Bit offset (0-7)':'({0..7})'
+    4:'Value to write':'(0 1)'
   )
   _arguments -S -s -w "${args[@]}"
 }
@@ -193,7 +299,9 @@ _ec_probe_monitor() {
     '(--timespan -t)'{-t+,--timespan=}'[Set poll intervall]':seconds:"_numbers 'Set poll intervall'"
     '(--report -r)'{-r+,--report=}'[Save all readings as a CSV file]':report:_files
     '(--clearly -c)'{-c,--clearly}'[Blanks out consecutive duplicate readings]'
-    '(--decimal -d)'{-d,--decimal}'[Output readings in decimal format instead of hexadecimal format]'
+    '(--decimal -d)'{-d,--decimal}'[Output register readings in decimal format]'
+    '(--cpu -C)'{-C,--cpu}'[Record CPU temperatures]'
+    '(--gpu -G)'{-G,--gpu}'[Record GPU temperatures]'
     '(--help -h)'{-h,--help}'[show this help message and exit]'
     '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
     1:command1:_ec_probe__command
@@ -213,11 +321,20 @@ _ec_probe_watch() {
 }
 
 _ec_probe_acpi_call() {
+  local opts='-m= --map= -d --dry -h --help -e= --embedded-controller='
+  local HAVING_OPTIONS=() OPTION_VALUES=() POSITIONALS=() INCOMPLETE_OPTION=''
+  _ec_probe__query init "$opts" "${words[@]}"
+
+  local _EC_PROBE_MAP_FILE=()
+  IFS=$"\n" _EC_PROBE_MAP_FILE=($(_ec_probe__query get_option -m --map))
+
   local -a args=(
+    '(--map -m)'{-m+,--map=}'[Specify map file for resolving methods]':FILE:_files
+    '(--dry -d)'{-d,--dry}'[Print the ACPI command without executing it]'
     '(--help -h)'{-h,--help}'[show this help message and exit]'
     '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
     1:command1:_ec_probe__command
-    2:'Method to call':' '
+    2:'Method to call':'{_ec_probe__exec _ec_probe_complete_map_method}'
     3:'First argument':"_numbers 'First argument'"
     4:'Second argument':"_numbers 'Second argument'"
     5:'Third argument':"_numbers 'Third argument'"
@@ -226,6 +343,41 @@ _ec_probe_acpi_call() {
     8:'Sixth argument':"_numbers 'Sixth argument'"
     9:'Seventh argument':"_numbers 'Seventh argument'"
     10:'Eighth argument':"_numbers 'Eighth argument'"
+  )
+  _arguments -S -s -w "${args[@]}"
+}
+
+_ec_probe_graph() {
+  local -a args=(
+    '(--decimal -d)'{-d,--decimal}'[Read register values as decimal numbers]'
+    '(--register-color)'--register-color='[Specify color for drawing register line]':COLOR:' '
+    '(--cpu-color)'--cpu-color='[Specify color for drawing CPU temperature line]':COLOR:' '
+    '(--gpu-color)'--gpu-color='[Specify color for drawing GPU temperature line]':COLOR:' '
+    '(--help -h)'{-h,--help}'[show this help message and exit]'
+    '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
+    1:command1:_ec_probe__command
+    2:'CSV file containing the recordings':_files
+  )
+  _arguments -S -s -w "${args[@]}"
+}
+
+_ec_probe_evaluate() {
+  local -a args=(
+    '(--decimal -d)'{-d,--decimal}'[Read register values as decimal numbers]'
+    '(--help -h)'{-h,--help}'[show this help message and exit]'
+    '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
+    1:command1:_ec_probe__command
+    2:'CSV file containing the recordings':_files
+  )
+  _arguments -S -s -w "${args[@]}"
+}
+
+_ec_probe_lua() {
+  local -a args=(
+    '(--help -h)'{-h,--help}'[show this help message and exit]'
+    '(--embedded-controller -e)'{-e+,--embedded-controller=}'[Specify embedded controller to use]':EC:'(acpi_ec ec_sys dev_port)'
+    1:command1:_ec_probe__command
+    2:'Lua source file':_files
   )
   _arguments -S -s -w "${args[@]}"
 }

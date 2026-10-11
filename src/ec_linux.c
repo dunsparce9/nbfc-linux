@@ -16,14 +16,14 @@
  *            Core/Plugins/StagWare.Plugins.ECLinux/ECLinux.cs                *
  * ========================================================================== */
 
-#define EC_Linux_PortFilePath "/dev/port"
+#define EC_LINUX_PORT_FILE_PATH "/dev/port"
 
 static int EC_Linux_FD = -1;
 
 Error EC_Linux_Open(void) {
-  EC_Linux_FD = open(EC_Linux_PortFilePath, O_RDWR);
+  EC_Linux_FD = open(EC_LINUX_PORT_FILE_PATH, O_RDWR);
   if (EC_Linux_FD < 0)
-    return err_stdlib(EC_Linux_PortFilePath);
+    return err_stdlib(EC_LINUX_PORT_FILE_PATH);
   return err_success();
 }
 

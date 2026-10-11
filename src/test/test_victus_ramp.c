@@ -1,7 +1,7 @@
 // No hardware access: exercise the real sensor, filter and fan code with files.
 // Example (from repository root):
 // cc -DSYSCONFDIR='"/etc"' -DDATADIR='"/usr/share"' \
-//   -DRUNSTATEDIR='"/var/run"' -DVERSION='"0.5.2"' -I/usr/include/lua5.4 \
+//   -DLIBDIR='"/usr/lib"' -DRUNSTATEDIR='"/var/run"' -DVERSION='"0.5.4"' -I/usr/include/lua5.4 \
 //   src/test/test_victus_ramp.c -o /tmp/test-victus-ramp -lm -llua5.4 -ldl
 // Run /tmp/test-victus-ramp with the three profile paths.
 #define main nbfc_service_main
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
       assert(!e);
     }
     ServiceConfig service_config = {0};
-    e = FanTemperatureControl_Init(&fans, &service_config, &config);
+    e = FanTemperatureControls_Init(&fans, &service_config, &config);
     assert(!e);
 
     for (array_size_t i = 0; i < fans.size; ++i) {
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
 
       write_temperature(cpu_path, 40);
       for (int n = 0; n < 20; ++n) sample(ftc);
-      if (ftc->TemperatureSourcesSize > 1) {
+      if (ftc->TemperatureSources.size > 1) {
         write_temperature(gpu_path, 96);
         sample(ftc);
         assert(ftc->Temperature >= 96);
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
       write_temperature(gpu_path, 40);
       TemperatureFilter_Close(&ftc->TemperatureFilter);
     }
-    Mem_Free(fans.data);
+    FanTemperatureControls_Free(&fans);
     ModelConfig_Free(&config);
   }
   unlink(cpu_path);

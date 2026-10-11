@@ -1,4 +1,4 @@
-#define EC_PROBE_HELP_TEXT                                                     \
+#define EC_PROBE_HELP_HELP_TEXT                                                \
  "Usage: %s [-h] [-e EC] COMMAND [...]\n"                                      \
  "\n"                                                                          \
  "Probing tool for the embedded controller\n"                                  \
@@ -12,14 +12,19 @@
  "Commands:\n"                                                                 \
  "  dump                  Dump all EC registers\n"                             \
  "  load                  Load a previously made dump\n"                       \
- "  read                  Read a byte from a EC register\n"                    \
- "  write                 Write a byte to a EC register\n"                     \
+ "  read                  Read a byte from an EC register\n"                   \
+ "  write                 Write a byte to an EC register\n"                    \
+ "  read_bit              Read a bit from an EC register\n"                    \
+ "  write_bit             Write a bit to an EC register\n"                     \
  "  monitor               Monitor all EC registers for changes\n"              \
+ "  evaluate              Evaluate a report written by monitor command\n"      \
  "  watch                 Monitor all EC registers for changes (alternative version)\n"\
  "  acpi_call             Call an ACPI method\n"                               \
+ "  graph                 Visualize recordings made by `ec_probe monitor -r`\n"\
+ "  lua                   Execute a Lua file\n"                                \
  "\n"                                                                          \
  "All input values are interpreted as decimal numbers by default.\n"           \
- "Hexadecimal values may be entered by prefixing them with \"0x\".\n"          \
+ "Use the \"0x\" prefix for hexadecimal values and \"0b\" for binary values.\n"\
  ""
 
 #define EC_PROBE_DUMP_HELP_TEXT                                                \
@@ -39,43 +44,87 @@
  "Load a dump and write it to the EC registers.\n"                             \
  "\n"                                                                          \
  "Positional arguments:\n"                                                     \
- "  FILE        Dump file\n"                                                   \
+ "  FILE    Dump file\n"                                                       \
  "\n"                                                                          \
  "Optional arguments:\n"                                                       \
- "  -h, --help  Show this help message and exit\n"                             \
+ "  -h, --help      Show this help message and exit\n"                         \
  ""
 
 #define EC_PROBE_READ_HELP_TEXT                                                \
- "Usage: %s read [-h] [-w] REGISTER\n"                                         \
+ "Usage: %s read [-h] [-w] [-f FORMAT] [-m FILE] REGISTER\n"                   \
  "\n"                                                                          \
- "Read a byte from a EC register.\n"                                           \
+ "Read a byte from an EC register.\n"                                          \
  "\n"                                                                          \
  "Positional arguments:\n"                                                     \
  "  REGISTER    Register source\n"                                             \
  "\n"                                                                          \
  "Optional arguments:\n"                                                       \
- "  -h, --help  Show this help message and exit\n"                             \
- "  -w, --word  Read two registers as one word\n"                              \
+ "  -h, --help            Show this help message and exit\n"                   \
+ "  -w, --word            Read two registers as one word\n"                    \
+ "  -f, --format FORMAT   Specify output format\n"                             \
+ "  -m, --map FILE        Resolve register name from FILE\n"                   \
+ "\n"                                                                          \
+ "Available output formats:\n"                                                 \
+ "  Binary:       -fb  -fB\n"                                                  \
+ "  Decimal:      -fd  -fD\n"                                                  \
+ "  Hexadecimal:  -fx  -fX\n"                                                  \
  "\n"                                                                          \
  "All input values are interpreted as decimal numbers by default.\n"           \
- "Hexadecimal values may be entered by prefixing them with \"0x\".\n"          \
+ "Use the \"0x\" prefix for hexadecimal values and \"0b\" for binary values.\n"\
  ""
 
 #define EC_PROBE_WRITE_HELP_TEXT                                               \
- "Usage: %s write [-h] [-w] REGISTER VALUE\n"                                  \
+ "Usage: %s write [-h] [-w] [-m FILE] REGISTER VALUE\n"                        \
  "\n"                                                                          \
- "Write a byte to a EC register.\n"                                            \
+ "Write a byte to an EC register.\n"                                           \
  "\n"                                                                          \
  "Positional arguments:\n"                                                     \
  "  REGISTER    Register destination\n"                                        \
  "  VALUE       Value to write\n"                                              \
  "\n"                                                                          \
  "Optional arguments:\n"                                                       \
- "  -h, --help  Show this help message and exit\n"                             \
- "  -w, --word  Write VALUE to two registers\n"                                \
+ "  -h, --help      Show this help message and exit\n"                         \
+ "  -w, --word      Write two registers as one word\n"                         \
+ "  -m, --map FILE  Resolve register name from FILE\n"                         \
  "\n"                                                                          \
  "All input values are interpreted as decimal numbers by default.\n"           \
- "Hexadecimal values may be entered by prefixing them with \"0x\".\n"          \
+ "Use the \"0x\" prefix for hexadecimal values and \"0b\" for binary values.\n"\
+ ""
+
+#define EC_PROBE_READ_BIT_HELP_TEXT                                            \
+ "Usage: %s read_bit [-h] [-m FILE] REGISTER BIT-OFFSET\n"                     \
+ "\n"                                                                          \
+ "Read a bit from an EC register.\n"                                           \
+ "\n"                                                                          \
+ "Positional arguments:\n"                                                     \
+ "  REGISTER    Register source\n"                                             \
+ "  BIT-OFFSET  Bit offset (0 - 7)\n"                                          \
+ "\n"                                                                          \
+ "Optional arguments:\n"                                                       \
+ "  -h, --help      Show this help message and exit\n"                         \
+ "  -m, --map FILE  Resolve register name from FILE\n"                         \
+ "\n"                                                                          \
+ "All input values are interpreted as decimal numbers by default.\n"           \
+ "Use the \"0x\" prefix for hexadecimal values and \"0b\" for binary values.\n"\
+ ""
+
+#define EC_PROBE_WRITE_BIT_HELP_TEXT                                           \
+ "Usage: %s write_bit [-h] [-m FILE] REGISTER BIT-OFFSET VALUE\n"              \
+ "\n"                                                                          \
+ "Write a bit to an EC register.\n"                                            \
+ "\n"                                                                          \
+ "Positional arguments:\n"                                                     \
+ "  REGISTER    Register destination\n"                                        \
+ "  BIT-OFFSET  Bit offset (0 - 7)\n"                                          \
+ "  VALUE       Value (0, 1)\n"                                                \
+ "\n"                                                                          \
+ "Optional arguments:\n"                                                       \
+ "  -h, --help      Show this help message and exit\n"                         \
+ "  -d, --dry       Print the resulting value without writing it\n"            \
+ "  -m, --map FILE  Resolve register name from FILE\n"                         \
+ "\n"                                                                          \
+ "All input values are interpreted as decimal numbers by default.\n"           \
+ "Use the \"0x\" prefix for hexadecimal values and \"0b\" for binary values.\n"\
  ""
 
 #define EC_PROBE_MONITOR_HELP_TEXT                                             \
@@ -92,7 +141,9 @@
  "  -r FILE, --report FILE\n"                                                  \
  "                        Save all readings as a CSV file\n"                   \
  "  -c, --clearly         Blanks out consecutive duplicate readings\n"         \
- "  -d, --decimal         Output readings in decimal format instead of hexadecimal format\n"\
+ "  -d, --decimal         Output register readings in decimal format\n"        \
+ "  -C, --cpu             Record CPU temperatures\n"                           \
+ "  -G, --gpu             Record GPU temperatures\n"                           \
  ""
 
 #define EC_PROBE_WATCH_HELP_TEXT                                               \
@@ -117,12 +168,58 @@
  "\n"                                                                          \
  "Optional arguments:\n"                                                       \
  "  -h, --help            Show this help message and exit\n"                   \
+ "  -d, --dry             Print the ACPI command without executing it\n"       \
+ "  -m, --map FILE        Resolve method abbreviations from FILE\n"            \
  ""
 
 #define EC_PROBE_SHELL_HELP_TEXT                                               \
  "Usage: %s shell [-h]\n"                                                      \
  "\n"                                                                          \
  "Read commands from STDIN.\n"                                                 \
+ "\n"                                                                          \
+ "Optional arguments:\n"                                                       \
+ "  -h, --help            Show this help message and exit\n"                   \
+ ""
+
+#define EC_PROBE_GRAPH_HELP_TEXT                                               \
+ "Usage: %s graph FILE [OPTIONS]\n"                                            \
+ "\n"                                                                          \
+ "Visualize recordings made by `ec_probe monitor -r`.\n"                       \
+ "\n"                                                                          \
+ "Optional arguments:\n"                                                       \
+ "  -h, --help              Show this help message and exit\n"                 \
+ "  -d, --decimal           Read register values as decimal numbers\n"         \
+ "  --register-color COLOR  Specify color for drawing register line\n"         \
+ "                          (default: blue)\n"                                 \
+ "  --cpu-color COLOR       Specify color for drawing CPU temperature line\n"  \
+ "                          (default: red)\n"                                  \
+ "  --gpu-color COLOR       Specify color for drawing GPU temperature line\n"  \
+ "                          (default: magenta)\n"                              \
+ ""
+
+#define EC_PROBE_EVALUATE_HELP_TEXT                                            \
+ "Usage: %s evaluate [-d] FILE\n"                                              \
+ "\n"                                                                          \
+ "Evaluate a report made with `ec_probe monitor --report FILE`\n"              \
+ "\n"                                                                          \
+ "This command calculates the correlation between register readings\n"         \
+ "and CPU/GPU temperature.\n"                                                  \
+ "\n"                                                                          \
+ "Note that the correlation may be reversed, meaning that higher register\n"   \
+ "values can correspond to lower temperatures, and vice versa.\n"              \
+ "\n"                                                                          \
+ "Optional arguments:\n"                                                       \
+ "  -h, --help            Show this help message and exit\n"                   \
+ "  -d, --decimal         Read register values as decimal numbers\n"           \
+ ""
+
+#define EC_PROBE_LUA_HELP_TEXT                                                 \
+ "Usage: %s lua FILE\n"                                                        \
+ "\n"                                                                          \
+ "Execute a Lua file\n"                                                        \
+ "\n"                                                                          \
+ "This command is useful for experimenting with Lua while developing a\n"      \
+ "configuration that uses Lua.\n"                                              \
  "\n"                                                                          \
  "Optional arguments:\n"                                                       \
  "  -h, --help            Show this help message and exit\n"                   \

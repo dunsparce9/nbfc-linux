@@ -71,7 +71,7 @@ static Error ConfigAnalysis_PushMethod(const char* method, bool unique) {
 
   if (unique) {
     for (size_t i = 0; i < ConfigAnalysis_Info.methods_size; ++i)
-      if (Acpi_Analysis_Path_Equals(method, ConfigAnalysis_Info.methods[i]))
+      if (AcpiAnalysis_PathEquals(method, ConfigAnalysis_Info.methods[i]))
         return err_success();
   }
 
@@ -88,10 +88,10 @@ static int ConfigAnalysis_EC_Read(lua_State* l) {
   const lua_Integer register_ = luaL_checkinteger(l, 1);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_read(): register < 0");
+    return Lua_ReturnError(l, "ec_read(): register < 0");
 
   if (register_ > 255)
-    return Lua_Return_Error(l, "ec_read(): register > 255");
+    return Lua_ReturnError(l, "ec_read(): register > 255");
 
   const enum RegisterType type = (
     ConfigAnalysis_InRegisterWriteConfiguration ?
@@ -101,19 +101,19 @@ static int ConfigAnalysis_EC_Read(lua_State* l) {
 
   Error e = ConfigAnalysis_PushRegister((uint8_t) register_, type, false);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
+  return Lua_ReturnInteger(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
 }
 
 static int ConfigAnalysis_EC_ReadWord(lua_State* l) {
   const lua_Integer register_ = luaL_checkinteger(l, 1);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_read_word(): register < 0");
+    return Lua_ReturnError(l, "ec_read_word(): register < 0");
 
   if (register_ > 254)
-    return Lua_Return_Error(l, "ec_read_word(): register > 254");
+    return Lua_ReturnError(l, "ec_read_word(): register > 254");
 
   const enum RegisterType type = (
     ConfigAnalysis_InRegisterWriteConfiguration ?
@@ -123,9 +123,9 @@ static int ConfigAnalysis_EC_ReadWord(lua_State* l) {
 
   Error e = ConfigAnalysis_PushRegister((uint8_t) register_, type, true);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
+  return Lua_ReturnInteger(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
 }
 
 static int ConfigAnalysis_EC_Write(lua_State* l) {
@@ -133,16 +133,16 @@ static int ConfigAnalysis_EC_Write(lua_State* l) {
   const lua_Integer value = luaL_checkinteger(l, 2);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_write(): register < 0");
+    return Lua_ReturnError(l, "ec_write(): register < 0");
 
   if (register_ > 255)
-    return Lua_Return_Error(l, "ec_write(): register > 255");
+    return Lua_ReturnError(l, "ec_write(): register > 255");
 
   if (value < 0)
-    return Lua_Return_Error(l, "ec_write(): value < 0");
+    return Lua_ReturnError(l, "ec_write(): value < 0");
 
   if (value > 255)
-    return Lua_Return_Error(l, "ec_write(): value > 255");
+    return Lua_ReturnError(l, "ec_write(): value > 255");
 
   const enum RegisterType type = (
     ConfigAnalysis_InRegisterWriteConfiguration ?
@@ -152,9 +152,9 @@ static int ConfigAnalysis_EC_Write(lua_State* l) {
 
   Error e = ConfigAnalysis_PushRegister((uint8_t) register_, type, false);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, 0);
+  return Lua_ReturnInteger(l, 0);
 }
 
 static int ConfigAnalysis_EC_WriteWord(lua_State* l) {
@@ -162,16 +162,16 @@ static int ConfigAnalysis_EC_WriteWord(lua_State* l) {
   const lua_Integer value = luaL_checkinteger(l, 2);
 
   if (register_ < 0)
-    return Lua_Return_Error(l, "ec_write_word(): register < 0");
+    return Lua_ReturnError(l, "ec_write_word(): register < 0");
 
   if (register_ > 254)
-    return Lua_Return_Error(l, "ec_write_word(): register > 254");
+    return Lua_ReturnError(l, "ec_write_word(): register > 254");
 
   if (value < 0)
-    return Lua_Return_Error(l, "ec_write_word(): value < 0");
+    return Lua_ReturnError(l, "ec_write_word(): value < 0");
 
   if (value > UINT16_MAX)
-    return Lua_Return_Error(l, "ec_write_word(): value > 65535");
+    return Lua_ReturnError(l, "ec_write_word(): value > 65535");
 
   const enum RegisterType type = (
     ConfigAnalysis_InRegisterWriteConfiguration ?
@@ -181,9 +181,9 @@ static int ConfigAnalysis_EC_WriteWord(lua_State* l) {
 
   Error e = ConfigAnalysis_PushRegister((uint8_t) register_, type, true);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, 0);
+  return Lua_ReturnInteger(l, 0);
 }
 
 static int ConfigAnalysis_ACPI_Call(lua_State* l) {
@@ -192,9 +192,9 @@ static int ConfigAnalysis_ACPI_Call(lua_State* l) {
 
   Error e = ConfigAnalysis_PushMethod(method, true);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_Integer(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
+  return Lua_ReturnInteger(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
 }
 
 static int ConfigAnalysis_ACPI_CallRaw(lua_State* l) {
@@ -203,9 +203,9 @@ static int ConfigAnalysis_ACPI_CallRaw(lua_State* l) {
 
   Error e = ConfigAnalysis_PushMethod(method, true);
   if (e)
-    return Lua_Return_Error(l, err_print_all(e));
+    return Lua_ReturnError(l, err_print_all(e));
 
-  return Lua_Return_String(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE_RAW);
+  return Lua_ReturnString(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE_RAW);
 }
 
 static int ConfigAnalysis_ACPI_GetInt(lua_State* l) {
@@ -213,7 +213,7 @@ static int ConfigAnalysis_ACPI_GetInt(lua_State* l) {
   luaL_checklstring(l, 1, &len); // result
   luaL_checklstring(l, 2, &len); // path
 
-  return Lua_Return_Integer(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
+  return Lua_ReturnInteger(l, CONFIG_ANALYSIS_DUMMY_RETURN_VALUE);
 }
 
 static Error ConfigAnalysis_Begin(void) {
@@ -236,46 +236,54 @@ static Error ConfigAnalysis_Begin(void) {
 }
 
 Error ConfigAnalysis_AnalyzeFanConfiguration(
-  FanConfiguration* fan_config,
-  ModelConfig* model_config
+  const FanConfiguration* fan_config,
+  const ModelConfig* model_config
 ) {
   Error e;
   uint64_t dummy;
 
   // Read operations
-  if (FanConfiguration_IsSet_ReadRegister(fan_config)) {
+  if (fan_config->isset.ReadRegister) {
+    bool readWords = model_config->ReadWriteWords;
+    if (fan_config->isset.ReadWords)
+      readWords = fan_config->ReadWords;
+
     e = ConfigAnalysis_PushRegister(
       fan_config->ReadRegister,
       RegisterType_FanReadRegister,
-      model_config->ReadWriteWords);
+      readWords);
     if (e) return e;
   }
 
-  if (FanConfiguration_IsSet_ReadAcpiMethod(fan_config)) {
+  if (fan_config->isset.ReadAcpiMethod) {
     e = ConfigAnalysis_PushMethod(fan_config->ReadAcpiMethod, false);
     if (e) return e;
   }
 
-  if (FanConfiguration_IsSet_ReadLuaCode(fan_config)) {
+  if (fan_config->isset.ReadLuaCode) {
     e = Lua_Call(fan_config->ReadLuaCode.function, 0, &dummy);
     if (e) return e;
   }
 
   // Write operations
-  if (FanConfiguration_IsSet_WriteRegister(fan_config)) {
+  if (fan_config->isset.WriteRegister) {
+    bool writeWords = model_config->ReadWriteWords;
+    if (fan_config->isset.WriteWords)
+      writeWords = fan_config->WriteWords;
+
     e = ConfigAnalysis_PushRegister(
       fan_config->WriteRegister,
       RegisterType_FanWriteRegister,
-      model_config->ReadWriteWords);
+      writeWords);
     if (e) return e;
   }
 
-  if (FanConfiguration_IsSet_WriteAcpiMethod(fan_config)) {
+  if (fan_config->isset.WriteAcpiMethod) {
     e = ConfigAnalysis_PushMethod(fan_config->WriteAcpiMethod, false);
     if (e) return e;
   }
 
-  if (FanConfiguration_IsSet_WriteLuaCode(fan_config)) {
+  if (fan_config->isset.WriteLuaCode) {
     if (fan_config->MinSpeedValue < fan_config->MaxSpeedValue) {
       for (uint64_t i = fan_config->MinSpeedValue; i <= fan_config->MaxSpeedValue; ++i) {
         e = Lua_Call(fan_config->WriteLuaCode.function, i, &dummy);
@@ -291,12 +299,12 @@ Error ConfigAnalysis_AnalyzeFanConfiguration(
   }
 
   // Reset operations
-  if (FanConfiguration_IsSet_ResetAcpiMethod(fan_config)) {
+  if (fan_config->isset.ResetAcpiMethod) {
     e = ConfigAnalysis_PushMethod(fan_config->ResetAcpiMethod, false);
     if (e) return e;
   }
 
-  if (FanConfiguration_IsSet_ResetLuaCode(fan_config)) {
+  if (fan_config->isset.ResetLuaCode) {
     e = Lua_Call(fan_config->ResetLuaCode.function, 0, &dummy);
     if (e) return e;
   }
@@ -305,7 +313,7 @@ Error ConfigAnalysis_AnalyzeFanConfiguration(
 }
 
 Error ConfigAnalysis_AnalyzeModelConfig(
-  ModelConfig* model_config,
+  const ModelConfig* model_config,
   ConfigAnalysis** out
 ) {
   Error e;
@@ -322,29 +330,29 @@ Error ConfigAnalysis_AnalyzeModelConfig(
   ConfigAnalysis_InRegisterWriteConfiguration = true;
   for_each_array(RegisterWriteConfiguration*, rw_config, model_config->RegisterWriteConfigurations) {
     // Set operations
-    if (RegisterWriteConfiguration_IsSet_Register(rw_config)) {
+    if (rw_config->isset.Register) {
       e = ConfigAnalysis_PushRegister(rw_config->Register, RegisterType_RegisterWriteConfigurationRegister, false);
       if (e) return e;
     }
 
-    if (RegisterWriteConfiguration_IsSet_AcpiMethod(rw_config)) {
+    if (rw_config->isset.AcpiMethod) {
       e = ConfigAnalysis_PushMethod(rw_config->AcpiMethod, false);
       if (e) return e;
     }
 
-    if (RegisterWriteConfiguration_IsSet_LuaCode(rw_config)) {
+    if (rw_config->isset.LuaCode) {
       uint64_t dummy;
       e = Lua_Call(rw_config->LuaCode.function, 0, &dummy);
       if (e) return e;
     }
 
     // Reset operations
-    if (RegisterWriteConfiguration_IsSet_ResetAcpiMethod(rw_config)) {
+    if (rw_config->isset.ResetAcpiMethod) {
       e = ConfigAnalysis_PushMethod(rw_config->ResetAcpiMethod, false);
       if (e) return e;
     }
 
-    if (RegisterWriteConfiguration_IsSet_ResetLuaCode(rw_config)) {
+    if (rw_config->isset.ResetLuaCode) {
       uint64_t dummy;
       e = Lua_Call(rw_config->ResetLuaCode.function, 0, &dummy);
       if (e) return e;

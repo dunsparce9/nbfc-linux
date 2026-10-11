@@ -1,4 +1,6 @@
+#include <errno.h>  // errno, ENOENT
 #include <string.h> // strcmp
+#include <stdbool.h>
 #include <linux/limits.h> // PATH_MAX
 
 #include "service_control.h"
@@ -6,27 +8,29 @@
 #include "check_root.h"
 
 #include "../nbfc.h"
+#include "../error.h"
 #include "../memory.h"
 #include "../help/client.help.h"
 #include "../nxjson_utils.h"
 #include "../fs_sensors.h"
 #include "../file_utils.h"
 
-/* nbfc sensors API:
+/*
+ * nbfc sensors API:
  *
  * nbfc sensors show
  * nbfc sensors list
  * nbfc sensors set -f <FAN_INDEX> [-s sensor...] [-a algorithm]
  */
 
-const struct cli99_Option sensors_options[] = {
-  cli99_Options_Include(&main_options),
+const struct cli99_Option Sensors_CommandLine[] = {
+  cli99_Options_Include(&Main_CommandLine),
   {"sensors_command", Option_Sensors_Command,   cli99_NormalPositional},
   cli99_Options_End()
 };
 
-const struct cli99_Option sensors_set_options[] = {
-  cli99_Options_Include(&sensors_options),
+const struct cli99_Option Sensors_Set_CommandLine[] = {
+  cli99_Options_Include(&Sensors_CommandLine),
   {"-f|--fan",        Option_Sensors_Fan,       cli99_RequiredArgument},
   {"-s|--sensor",     Option_Sensors_Sensor,    cli99_RequiredArgument},
   {"-a|--algorithm",  Option_Sensors_Algorithm, cli99_RequiredArgument},
@@ -64,19 +68,17 @@ struct {
 };
 
 static Error Sensors_IsValidSensor(const char* sensor) {
+  Error e;
+  FS_TemperatureSource_References found_sensors = {0};
+
   switch (sensor[0]) {
     case '@':
-      // TODO: Check if sensor group can be resolved to a sensor
-      if (!strcmp(sensor, "@CPU"))
-        return err_success();
-
-      if (!strcmp(sensor, "@GPU"))
-        return err_success();
-
-      return err_stringf("No such sensor group: %s", sensor);
+      e = FS_TemperatureSources_AddTemperatureSources(&found_sensors, sensor);
+      Mem_Free(found_sensors.data);
+      return e;
 
     case '/':
-      if (file_exists(sensor))
+      if (File_Exists(sensor))
         return err_success();
 
       errno = ENOENT;
@@ -94,19 +96,20 @@ static Error Sensors_IsValidSensor(const char* sensor) {
   }
 }
 
-static FanTemperatureSourceConfig* Sensors_GetFTSCByFanIndex(array_size_t fanIndex) {
-  for_each_array(FanTemperatureSourceConfig*, ftsc, service_config.FanTemperatureSources)
+static FanTemperatureSourceConfig* Sensors_GetFTSCByFanIndex(ServiceConfig* service_config, array_size_t fanIndex) {
+  for_each_array(FanTemperatureSourceConfig*, ftsc, service_config->FanTemperatureSources)
     if (ftsc->FanIndex == fanIndex)
       return ftsc;
 
-  const array_size_t idx = service_config.FanTemperatureSources.size;
-  service_config.FanTemperatureSources.data = Mem_Realloc(service_config.FanTemperatureSources.data, (idx + 1) * sizeof(FanTemperatureSourceConfig));
-  service_config.FanTemperatureSources.size = (idx + 1);
-  return &service_config.FanTemperatureSources.data[idx];
+  const array_size_t idx = service_config->FanTemperatureSources.size;
+  array_realloc(FanTemperatureSourceConfig, service_config->FanTemperatureSources, (idx + 1));
+  service_config->FanTemperatureSources.size = (idx + 1);
+  return &service_config->FanTemperatureSources.data[idx];
 }
 
 static int Sensors_Set(void) {
   Error e;
+  ServiceConfig service_config = {0};
   ModelConfig model_config = {0};
 
   check_root();
@@ -116,8 +119,8 @@ static int Sensors_Set(void) {
     return NBFC_EXIT_CMDLINE;
   }
 
-  FS_Sensors_Init();
-  Service_LoadAllConfigFiles(&model_config);
+  FS_Sensors_Init(true);
+  Service_LoadAllConfigFiles(&service_config, &model_config);
 
   if (Sensors_Options.fan >= model_config.FanConfigurations.size) {
     Log_Error("%s: No such fan: %zu", "-f|--fan", Sensors_Options.fan);
@@ -135,38 +138,46 @@ static int Sensors_Set(void) {
     }
   }
 
-  FanTemperatureSourceConfig* ftsc = Sensors_GetFTSCByFanIndex(Sensors_Options.fan);
+  FanTemperatureSourceConfig* ftsc = Sensors_GetFTSCByFanIndex(&service_config, Sensors_Options.fan);
 
-  FanTemperatureSourceConfig_Set_FanIndex(ftsc);
+  ftsc->isset.FanIndex = true;
   ftsc->FanIndex = Sensors_Options.fan;
 
   if (Sensors_Options.sensors.size) {
-    FanTemperatureSourceConfig_Set_Sensors(ftsc);
+    ftsc->isset.Sensors = true;
     ftsc->Sensors = Sensors_Options.sensors;
   }
   else {
-    FanTemperatureSourceConfig_UnSet_Sensors(ftsc);
+    ftsc->isset.Sensors = false;
     ftsc->Sensors.size = 0;
   }
 
   if (Sensors_Options.algorithm != TemperatureAlgorithmType_Unset) {
-    FanTemperatureSourceConfig_Set_TemperatureAlgorithmType(ftsc);
+    ftsc->isset.TemperatureAlgorithmType = true;
     ftsc->TemperatureAlgorithmType = Sensors_Options.algorithm;
   }
   else {
-    FanTemperatureSourceConfig_UnSet_TemperatureAlgorithmType(ftsc);
+    ftsc->isset.TemperatureAlgorithmType = false;
   }
 
-  e = ServiceConfig_Write(NBFC_SERVICE_CONFIG);
+  e = ServiceConfig_Write(&service_config, NBFC_SERVICE_CONFIG);
   e_die();
+
+#if STRICT_CLEANUP
+  FS_Sensors_Cleanup();
+  ModelConfig_Free(&model_config);
+  // We can't call ServiceConfig_Free() here, since `ftsc->Sensors` references
+  // Sensors_Options.sensors, which is an array of non-freeable `const char*`
+#endif
 
   return NBFC_EXIT_SUCCESS;
 }
 
 static int Sensors_Show(void) {
+  ServiceConfig service_config = {0};
   ModelConfig model_config = {0};
 
-  Service_LoadAllConfigFiles(&model_config);
+  Service_LoadAllConfigFiles(&service_config, &model_config);
 
   struct FanWithTrace {
     const char*              FanName;
@@ -176,7 +187,7 @@ static int Sensors_Show(void) {
     const char*              TemperatureAlgorithmType_Source;
   };
 
-  struct FanWithTrace *fans = Mem_Calloc(model_config.FanConfigurations.size, sizeof(struct FanWithTrace));
+  struct FanWithTrace* fans = Mem_Calloc(model_config.FanConfigurations.size, sizeof(struct FanWithTrace));
 
   // ==========================================================================
   // Set the defaults
@@ -201,12 +212,12 @@ static int Sensors_Show(void) {
 
     fans[i].FanName = fc->FanDisplayName;
 
-    if (FanConfiguration_IsSet_Sensors(fc)) {
+    if (fc->isset.Sensors) {
       fans[i].Sensors = fc->Sensors;
       fans[i].Sensors_Source = "model config";
     }
 
-    if (FanConfiguration_IsSet_TemperatureAlgorithmType(fc)) {
+    if (fc->isset.TemperatureAlgorithmType) {
       fans[i].TemperatureAlgorithmType = fc->TemperatureAlgorithmType;
       fans[i].TemperatureAlgorithmType_Source = "model config";
     }
@@ -220,12 +231,12 @@ static int Sensors_Show(void) {
     if (ftsc->FanIndex >= model_config.FanConfigurations.size)
       continue;
 
-    if (FanTemperatureSourceConfig_IsSet_Sensors(ftsc)) {
+    if (ftsc->isset.Sensors) {
       fans[ftsc->FanIndex].Sensors = ftsc->Sensors;
       fans[ftsc->FanIndex].Sensors_Source = "service config";
     }
 
-    if (FanTemperatureSourceConfig_IsSet_TemperatureAlgorithmType(ftsc)) {
+    if (ftsc->isset.TemperatureAlgorithmType) {
       fans[ftsc->FanIndex].TemperatureAlgorithmType = ftsc->TemperatureAlgorithmType;
       fans[ftsc->FanIndex].TemperatureAlgorithmType_Source = "service config";
     }
@@ -247,37 +258,37 @@ static int Sensors_Show(void) {
     printf("\n");
   }
 
+#if STRICT_CLEANUP
+  Mem_Free(fans);
+  ServiceConfig_Free(&service_config);
+  ModelConfig_Free(&model_config);
+#endif
+
   return NBFC_EXIT_SUCCESS;
 }
 
 static int Sensors_List(void) {
-  FS_Sensors_Init();
+  FS_Sensors_Init(true);
 
-  const char* having[4096];
-  ssize_t     having_size = 0;
+  bool source_was_printed[32768] = {0};
 
   for_each_array(FS_TemperatureSource*, source, FS_Sensors_Sources) {
-    bool sensor_printed = false;
-
-    for (ssize_t i = 0; i < having_size; ++i) {
-      if (! strcmp(having[i], source->name)) {
-        sensor_printed = true;
-        break;
-      }
-    }
-
-    if (sensor_printed)
+    if (source_was_printed[source - FS_Sensors_Sources.data])
       continue;
-
-    having[having_size++] = source->name;
 
     printf("%s:\n", source->name);
 
     for_each_array(FS_TemperatureSource*, source2, FS_Sensors_Sources) {
-      if (! strcmp(source->name, source2->name))
+      if (! strcmp(source->name, source2->name)) {
         printf("\t%s\n", source2->file);
+        source_was_printed[source2 - FS_Sensors_Sources.data] = true;
+      }
     }
   }
+
+#if STRICT_CLEANUP
+  FS_Sensors_Cleanup();
+#endif
 
   return NBFC_EXIT_SUCCESS;
 }

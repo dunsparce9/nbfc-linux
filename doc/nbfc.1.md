@@ -15,9 +15,9 @@ This program is used to control the NoteBook FanControl service.
 
 ## MISCELLANEOUS COMMANDS
 
-**nbfc** {**update** \| **rate-config** \| **acpi-dump** \|
-**get-model-name** \| **xml2json** \| **support** \| **warranty** \|
-**help**} \[*OPTIONS*\]
+**nbfc** {**update** \| **rate-config** \| **test-config** \|
+**acpi-dump** \| **get-model-name** \| **xml2json** \| **support** \|
+**warranty** \| **faq** \| **help**} \[*OPTIONS*\]
 
 # OPTIONS
 
@@ -70,6 +70,12 @@ This program is used to control the NoteBook FanControl service.
 > **-w**, **\--watch** *SECONDS*
 >
 > > Show status periodically.
+>
+> **-j**, **\--json**
+>
+> > Use JSON output.
+> >
+> > If specified, all other options are ignored.
 
 **config** \[*OPTIONS*\]
 
@@ -81,15 +87,18 @@ This program is used to control the NoteBook FanControl service.
 >
 > **-r**, **\--recommend**
 >
-> > List configs which may work for your device.
+> > List configs with a similar notebook model name.
 >
 > **-s**, **\--set** *CONFIG*
 >
 > > Set a config.
 >
-> **-a**, **\--apply** *CONFIG*
+> If *CONFIG* is **auto**, the service will attempt to automatically
+> select a matching configuration.
 >
-> > Set a config and start the service.
+> *CONFIG* is the configuration filename without the **.json**
+> extension, not the value of the **NotebookModel** field inside the
+> configuration file.
 
 **set** \[*OPTIONS*\]
 
@@ -144,6 +153,8 @@ This program is used to control the NoteBook FanControl service.
 
 > Download new configuration files from the internet.
 >
+> Downloaded files will be stored in */var/lib/nbfc/configs*.
+>
 > **-p**, **\--parallel** *NUM*
 >
 > > Set the number of parallel downloads (default: 10).
@@ -157,6 +168,9 @@ This program is used to control the NoteBook FanControl service.
 > Rates a configuration by analyzing whether it appears safe to execute
 > on the current system.
 >
+> By default, the DSDT and all SSDTs are read from
+> /sys/firmware/acpi/tables.
+>
 > **-H**, **\--full-help**
 >
 > > Show help on how to interpret the results.
@@ -165,9 +179,25 @@ This program is used to control the NoteBook FanControl service.
 >
 > > Rate all available configuration files.
 >
+> **-b**, **\--bad**
+>
+> > List only bad configs that are otherwise omitted.
+>
 > **-d**, **\--dsdt** *FILE*
 >
-> > Use an alternative DSDT file.
+> > Use an alternative DSDT file. Can be specified multiple times.
+>
+> **-D**, **\--dsdt-dir** *DIRECTORY*
+>
+> > Use an alternative DSDT directory.
+>
+> **-f**, **\--fan-count** *NUMBER*
+>
+> > Limit output to configurations with the specified number of fans.
+>
+> **-i**, **\--input** *FILE*
+>
+> > Read configuration files from *FILE*.
 >
 > **-j**, **\--json**
 >
@@ -186,22 +216,109 @@ This program is used to control the NoteBook FanControl service.
 >
 > > Use an alternative rules file.
 >
+> **-u**, **\--unverified**
+>
+> > Normally, only registers belonging to an **EmbeddedControl**
+> > operation region are taken into account when rating a configuration.
+> > With this option, registers from **SystemMemory** operation regions
+> > that may be accessible through the embedded controller are also
+> > considered. Their accessibility through the embedded controller
+> > cannot be guaranteed.
+>
+> **-q**, **\--quiet**
+>
+> > Do not print register ratings.
+>
 > **\--print-rules**
 >
 > > Print configuration rating rules.
 
-**acpi-dump** {**registers** \| **ec-registers** \| **methods** \|
-**dsl**} \[*OPTIONS*\]
+**test-config** {**run** \| **evaluate**} \[*OPTIONS*\]
 
-> Dumps information of your ACPI DSDT.
+> Test configurations automatically.
+>
+> This command should only be used in conjunction with **nbfc
+> rate-config**.
+>
+> For example:
+>
+> > **sudo nbfc rate-config -aqq \| sudo nbfc test-config run**
+>
+> It should **not** be used to test arbitrary configurations.
+>
+> **run** \[*OPTIONS*\]
+>
+> > Reads a list of configuration files from an input file (default:
+> > **stdin**).
+> >
+> > Configurations will be loaded in read-only mode.
+> >
+> > The notebook\'s fans will be spinned up by stressing the CPU/GPU
+> > while reading back the fan speed for each configuration.
+> >
+> > The result will be written to **nbfc.test-config.result.json**.
+> >
+> > **-i**, **\--input** *FILE*
+> >
+> > > Specify input file.
+> >
+> > **-o**, **\--output** *FILE*
+> >
+> > > Specify output file.
+> >
+> > **-c**, **\--cpu** *NUMBER*
+> >
+> > > Specify number of CPU workers.
+> >
+> > **-g**, **\--gpu** *NUMBER*
+> >
+> > > Specify number of GPU workers (default: **no workers**).
+> >
+> > **-I**, **\--interval** *SECONDS*
+> >
+> > > Set sample interval (default: **0.5**).
+> >
+> > **-t**, **\--threshold** *DELTA*
+> >
+> > > Stop when temperature difference falls below *DELTA* (default:
+> > > **2.0**).
+> >
+> > **-b**, **\--break** *SECONDS*
+> >
+> > > Stop after the temperature difference has remained below *DELTA*
+> > > for *SECONDS* consecutive seconds (default: **10.0**).
+>
+> **evaluate** \[*OPTIONS*\]
+>
+> > Evaluates a previously generated result file. Default:
+> > **nbfc.test-config.result.json**.
+> >
+> > **-i**, **\--input** *FILE*
+> >
+> > > Specify input file.
+
+**acpi-dump** {**registers** \| **ec-registers** \| **methods** \|
+**dsl** \| **map**} \[*OPTIONS*\]
+
+> Dumps information of your ACPI tables.
+>
+> By default, the DSDT and all SSDTs are read from
+> /sys/firmware/acpi/tables.
 >
 > **registers**
 >
 > > List all available registers.
 >
-> **ec-registers**
+> **ec-registers** \[**-u**\|**\--unverified**\]
 >
 > > List all available embedded controller registers.
+> >
+> > Normally, only registers belonging to an **EmbeddedControl**
+> > operation region are printed. If **-u**\|**\--unverified** is
+> > specified, also registers from **SystemMemory** operation regions
+> > that may be accessible through the embedded controller are printed.
+> > Their accessibility through the embedded controller cannot be
+> > guaranteed.
 >
 > **methods**
 >
@@ -209,11 +326,28 @@ This program is used to control the NoteBook FanControl service.
 >
 > **dsl**
 >
-> > Disassemble your DSDT.
+> > Disassemble your ACPI tables.
 >
-> **-f**, **\--file** *FILE*
+> **map** \[**-u**\|**\--unverified**\]
 >
-> > Use an alternative DSDT file.
+> > Generate a map file that can be used by **ec_probe -m\|\--map**. The
+> > map contains detected registers with their names and addresses as
+> > well as ACPI method names.
+> >
+> > Normally, only registers belonging to an **EmbeddedControl**
+> > operation region are printed. If **-u**\|**\--unverified** is
+> > specified, also registers from **SystemMemory** operation regions
+> > that may be accessible through the embedded controller are printed.
+> > Their accessibility through the embedded controller cannot be
+> > guaranteed.
+>
+> **-d**, **\--dsdt** *FILE*
+>
+> > Use an alternative DSDT file. Can be specified multiple times.
+>
+> **-D**, **\--dsdt-dir** *DIRECTORY*
+>
+> > Use an alternative DSDT directory.
 >
 > **-j**, **\--json**
 >
@@ -223,13 +357,28 @@ This program is used to control the NoteBook FanControl service.
 
 > Show how to support the project.
 >
-> **\--upload-firmare**
+> **\--upload-firmware**
 >
 > > Upload your notebook firmware without prompting.
 >
 > **\--print-command**
 >
 > > Print command for manual firmware upload.
+>
+> **\--create-archive** *FILE*
+>
+> > Creates a compressed **tar.gz** archive containing information
+> > required for support and hardware analysis.
+> >
+> > The archive includes:
+> >
+> > - The output of **nbfc get-model-name**
+> >
+> > - The output of **nbfc sensors list**
+> >
+> > - Firmware DSDT (*/sys/firmware/acpi/tables/DSDT*)
+> >
+> > - Firmware SSDTs (*/sys/firmware/acpi/tables/SSDT\**)
 
 **get-model-name**
 
@@ -245,6 +394,10 @@ This program is used to control the NoteBook FanControl service.
 **warranty**
 
 > Show warranty.
+
+**faq**
+
+> Show NBFC FAQ manual page.
 
 **help**
 

@@ -1,11 +1,12 @@
+#include "../nbfc.h"
 #include "../xml2json.h"
 #include "../model_config_to_json.h"
 #include "../nxjson_write.h"
 
 #include "client_global.h"
 
-const struct cli99_Option xml2json_options[] = {
-  cli99_Options_Include(&main_options),
+const struct cli99_Option Xml2Json_CommandLine[] = {
+  cli99_Options_Include(&Main_CommandLine),
   {"file", Option_Xml2Json_File, cli99_NormalPositional},
   cli99_Options_End()
 };
@@ -56,7 +57,7 @@ int Xml2Json(void) {
 
   // Set LegacyTemperatureThresholdsBehaviour to true
   model_config.LegacyTemperatureThresholdsBehaviour = true;
-  ModelConfig_Set_LegacyTemperatureThresholdsBehaviour(&model_config);
+  model_config.isset.LegacyTemperatureThresholdsBehaviour = true;
 
   // Convert ModelConfig back to JSON and print it
   nx_json root = {0};

@@ -1,20 +1,21 @@
-<h1>NAME</h1>
+<h1 id="name">NAME</h1>
 <p>nbfc - Notebook FanControl client</p>
-<h1>DESCRIPTION</h1>
+<h1 id="description">DESCRIPTION</h1>
 <p>This program is used to control the NoteBook FanControl service.</p>
-<h1>SYNOPSIS</h1>
-<h2>SERVICE CONTROL COMMANDS</h2>
+<h1 id="synopsis">SYNOPSIS</h1>
+<h2 id="service-control-commands">SERVICE CONTROL COMMANDS</h2>
 <p><strong>nbfc</strong> {<strong>start</strong> | <strong>stop</strong>
 | <strong>restart</strong> | <strong>status</strong> |
 <strong>config</strong> | <strong>set</strong> |
 <strong>sensors</strong>} [<em>OPTIONS</em>]</p>
-<h2>MISCELLANEOUS COMMANDS</h2>
+<h2 id="miscellaneous-commands">MISCELLANEOUS COMMANDS</h2>
 <p><strong>nbfc</strong> {<strong>update</strong> |
-<strong>rate-config</strong> | <strong>acpi-dump</strong> |
-<strong>get-model-name</strong> | <strong>xml2json</strong> |
-<strong>support</strong> | <strong>warranty</strong> |
+<strong>rate-config</strong> | <strong>test-config</strong> |
+<strong>acpi-dump</strong> | <strong>get-model-name</strong> |
+<strong>xml2json</strong> | <strong>support</strong> |
+<strong>warranty</strong> | <strong>faq</strong> |
 <strong>help</strong>} [<em>OPTIONS</em>]</p>
-<h1>OPTIONS</h1>
+<h1 id="options">OPTIONS</h1>
 <p><strong>-h</strong>, <strong>--help</strong></p>
 <blockquote>
 <p>Show help message and exit.</p>
@@ -23,7 +24,7 @@
 <blockquote>
 <p>Show program's version number and exit.</p>
 </blockquote>
-<h1>COMMANDS</h1>
+<h1 id="commands">COMMANDS</h1>
 <p><strong>start</strong> [<em>OPTIONS</em>]</p>
 <blockquote>
 <p>Start the service.</p>
@@ -63,6 +64,11 @@
 <blockquote>
 <p>Show status periodically.</p>
 </blockquote>
+<p><strong>-j</strong>, <strong>--json</strong></p>
+<blockquote>
+<p>Use JSON output.</p>
+<p>If specified, all other options are ignored.</p>
+</blockquote>
 </blockquote>
 <p><strong>config</strong> [<em>OPTIONS</em>]</p>
 <blockquote>
@@ -73,16 +79,17 @@
 </blockquote>
 <p><strong>-r</strong>, <strong>--recommend</strong></p>
 <blockquote>
-<p>List configs which may work for your device.</p>
+<p>List configs with a similar notebook model name.</p>
 </blockquote>
 <p><strong>-s</strong>, <strong>--set</strong> <em>CONFIG</em></p>
 <blockquote>
 <p>Set a config.</p>
 </blockquote>
-<p><strong>-a</strong>, <strong>--apply</strong> <em>CONFIG</em></p>
-<blockquote>
-<p>Set a config and start the service.</p>
-</blockquote>
+<p>If <em>CONFIG</em> is <strong>auto</strong>, the service will attempt
+to automatically select a matching configuration.</p>
+<p><em>CONFIG</em> is the configuration filename without the
+<strong>.json</strong> extension, not the value of the
+<strong>NotebookModel</strong> field inside the configuration file.</p>
 </blockquote>
 <p><strong>set</strong> [<em>OPTIONS</em>]</p>
 <blockquote>
@@ -139,6 +146,8 @@ speed.</p>
 <p><strong>update</strong> [<em>OPTIONS</em>]</p>
 <blockquote>
 <p>Download new configuration files from the internet.</p>
+<p>Downloaded files will be stored in
+<em>/var/lib/nbfc/configs</em>.</p>
 <p><strong>-p</strong>, <strong>--parallel</strong> <em>NUM</em></p>
 <blockquote>
 <p>Set the number of parallel downloads (default: 10).</p>
@@ -152,6 +161,8 @@ speed.</p>
 <blockquote>
 <p>Rates a configuration by analyzing whether it appears safe to execute
 on the current system.</p>
+<p>By default, the DSDT and all SSDTs are read from
+/sys/firmware/acpi/tables.</p>
 <p><strong>-H</strong>, <strong>--full-help</strong></p>
 <blockquote>
 <p>Show help on how to interpret the results.</p>
@@ -160,9 +171,26 @@ on the current system.</p>
 <blockquote>
 <p>Rate all available configuration files.</p>
 </blockquote>
+<p><strong>-b</strong>, <strong>--bad</strong></p>
+<blockquote>
+<p>List only bad configs that are otherwise omitted.</p>
+</blockquote>
 <p><strong>-d</strong>, <strong>--dsdt</strong> <em>FILE</em></p>
 <blockquote>
-<p>Use an alternative DSDT file.</p>
+<p>Use an alternative DSDT file. Can be specified multiple times.</p>
+</blockquote>
+<p><strong>-D</strong>, <strong>--dsdt-dir</strong>
+<em>DIRECTORY</em></p>
+<blockquote>
+<p>Use an alternative DSDT directory.</p>
+</blockquote>
+<p><strong>-f</strong>, <strong>--fan-count</strong> <em>NUMBER</em></p>
+<blockquote>
+<p>Limit output to configurations with the specified number of fans.</p>
+</blockquote>
+<p><strong>-i</strong>, <strong>--input</strong> <em>FILE</em></p>
+<blockquote>
+<p>Read configuration files from <em>FILE</em>.</p>
 </blockquote>
 <p><strong>-j</strong>, <strong>--json</strong></p>
 <blockquote>
@@ -181,23 +209,110 @@ on the current system.</p>
 <blockquote>
 <p>Use an alternative rules file.</p>
 </blockquote>
+<p><strong>-u</strong>, <strong>--unverified</strong></p>
+<blockquote>
+<p>Normally, only registers belonging to an
+<strong>EmbeddedControl</strong> operation region are taken into account
+when rating a configuration. With this option, registers from
+<strong>SystemMemory</strong> operation regions that may be accessible
+through the embedded controller are also considered. Their accessibility
+through the embedded controller cannot be guaranteed.</p>
+</blockquote>
+<p><strong>-q</strong>, <strong>--quiet</strong></p>
+<blockquote>
+<p>Do not print register ratings.</p>
+</blockquote>
 <p><strong>--print-rules</strong></p>
 <blockquote>
 <p>Print configuration rating rules.</p>
 </blockquote>
 </blockquote>
+<p><strong>test-config</strong> {<strong>run</strong> |
+<strong>evaluate</strong>} [<em>OPTIONS</em>]</p>
+<blockquote>
+<p>Test configurations automatically.</p>
+<p>This command should only be used in conjunction with <strong>nbfc
+rate-config</strong>.</p>
+<p>For example:</p>
+<blockquote>
+<p><strong>sudo nbfc rate-config -aqq | sudo nbfc test-config
+run</strong></p>
+</blockquote>
+<p>It should <strong>not</strong> be used to test arbitrary
+configurations.</p>
+<p><strong>run</strong> [<em>OPTIONS</em>]</p>
+<blockquote>
+<p>Reads a list of configuration files from an input file (default:
+<strong>stdin</strong>).</p>
+<p>Configurations will be loaded in read-only mode.</p>
+<p>The notebook's fans will be spinned up by stressing the CPU/GPU while
+reading back the fan speed for each configuration.</p>
+<p>The result will be written to
+<strong>nbfc.test-config.result.json</strong>.</p>
+<p><strong>-i</strong>, <strong>--input</strong> <em>FILE</em></p>
+<blockquote>
+<p>Specify input file.</p>
+</blockquote>
+<p><strong>-o</strong>, <strong>--output</strong> <em>FILE</em></p>
+<blockquote>
+<p>Specify output file.</p>
+</blockquote>
+<p><strong>-c</strong>, <strong>--cpu</strong> <em>NUMBER</em></p>
+<blockquote>
+<p>Specify number of CPU workers.</p>
+</blockquote>
+<p><strong>-g</strong>, <strong>--gpu</strong> <em>NUMBER</em></p>
+<blockquote>
+<p>Specify number of GPU workers (default: <strong>no
+workers</strong>).</p>
+</blockquote>
+<p><strong>-I</strong>, <strong>--interval</strong> <em>SECONDS</em></p>
+<blockquote>
+<p>Set sample interval (default: <strong>0.5</strong>).</p>
+</blockquote>
+<p><strong>-t</strong>, <strong>--threshold</strong> <em>DELTA</em></p>
+<blockquote>
+<p>Stop when temperature difference falls below <em>DELTA</em> (default:
+<strong>2.0</strong>).</p>
+</blockquote>
+<p><strong>-b</strong>, <strong>--break</strong> <em>SECONDS</em></p>
+<blockquote>
+<p>Stop after the temperature difference has remained below
+<em>DELTA</em> for <em>SECONDS</em> consecutive seconds (default:
+<strong>10.0</strong>).</p>
+</blockquote>
+</blockquote>
+<p><strong>evaluate</strong> [<em>OPTIONS</em>]</p>
+<blockquote>
+<p>Evaluates a previously generated result file. Default:
+<strong>nbfc.test-config.result.json</strong>.</p>
+<p><strong>-i</strong>, <strong>--input</strong> <em>FILE</em></p>
+<blockquote>
+<p>Specify input file.</p>
+</blockquote>
+</blockquote>
+</blockquote>
 <p><strong>acpi-dump</strong> {<strong>registers</strong> |
 <strong>ec-registers</strong> | <strong>methods</strong> |
-<strong>dsl</strong>} [<em>OPTIONS</em>]</p>
+<strong>dsl</strong> | <strong>map</strong>} [<em>OPTIONS</em>]</p>
 <blockquote>
-<p>Dumps information of your ACPI DSDT.</p>
+<p>Dumps information of your ACPI tables.</p>
+<p>By default, the DSDT and all SSDTs are read from
+/sys/firmware/acpi/tables.</p>
 <p><strong>registers</strong></p>
 <blockquote>
 <p>List all available registers.</p>
 </blockquote>
-<p><strong>ec-registers</strong></p>
+<p><strong>ec-registers</strong>
+[<strong>-u</strong>|<strong>--unverified</strong>]</p>
 <blockquote>
 <p>List all available embedded controller registers.</p>
+<p>Normally, only registers belonging to an
+<strong>EmbeddedControl</strong> operation region are printed. If
+<strong>-u</strong>|<strong>--unverified</strong> is specified, also
+registers from <strong>SystemMemory</strong> operation regions that may
+be accessible through the embedded controller are printed. Their
+accessibility through the embedded controller cannot be guaranteed.</p>
 </blockquote>
 <p><strong>methods</strong></p>
 <blockquote>
@@ -205,11 +320,29 @@ on the current system.</p>
 </blockquote>
 <p><strong>dsl</strong></p>
 <blockquote>
-<p>Disassemble your DSDT.</p>
+<p>Disassemble your ACPI tables.</p>
 </blockquote>
-<p><strong>-f</strong>, <strong>--file</strong> <em>FILE</em></p>
+<p><strong>map</strong>
+[<strong>-u</strong>|<strong>--unverified</strong>]</p>
 <blockquote>
-<p>Use an alternative DSDT file.</p>
+<p>Generate a map file that can be used by <strong>ec_probe
+-m|--map</strong>. The map contains detected registers with their names
+and addresses as well as ACPI method names.</p>
+<p>Normally, only registers belonging to an
+<strong>EmbeddedControl</strong> operation region are printed. If
+<strong>-u</strong>|<strong>--unverified</strong> is specified, also
+registers from <strong>SystemMemory</strong> operation regions that may
+be accessible through the embedded controller are printed. Their
+accessibility through the embedded controller cannot be guaranteed.</p>
+</blockquote>
+<p><strong>-d</strong>, <strong>--dsdt</strong> <em>FILE</em></p>
+<blockquote>
+<p>Use an alternative DSDT file. Can be specified multiple times.</p>
+</blockquote>
+<p><strong>-D</strong>, <strong>--dsdt-dir</strong>
+<em>DIRECTORY</em></p>
+<blockquote>
+<p>Use an alternative DSDT directory.</p>
 </blockquote>
 <p><strong>-j</strong>, <strong>--json</strong></p>
 <blockquote>
@@ -219,13 +352,26 @@ on the current system.</p>
 <p><strong>support</strong> [<em>OPTIONS</em>]</p>
 <blockquote>
 <p>Show how to support the project.</p>
-<p><strong>--upload-firmare</strong></p>
+<p><strong>--upload-firmware</strong></p>
 <blockquote>
 <p>Upload your notebook firmware without prompting.</p>
 </blockquote>
 <p><strong>--print-command</strong></p>
 <blockquote>
 <p>Print command for manual firmware upload.</p>
+</blockquote>
+<p><strong>--create-archive</strong> <em>FILE</em></p>
+<blockquote>
+<p>Creates a compressed <strong>tar.gz</strong> archive containing
+information required for support and hardware analysis.</p>
+<p>The archive includes:</p>
+<ul>
+<li><p>The output of <strong>nbfc get-model-name</strong></p></li>
+<li><p>The output of <strong>nbfc sensors list</strong></p></li>
+<li><p>Firmware DSDT (<em>/sys/firmware/acpi/tables/DSDT</em>)</p></li>
+<li><p>Firmware SSDTs
+(<em>/sys/firmware/acpi/tables/SSDT*</em>)</p></li>
+</ul>
 </blockquote>
 </blockquote>
 <p><strong>get-model-name</strong></p>
@@ -242,11 +388,15 @@ NBFC project into the NBFC-Linux format.</p>
 <blockquote>
 <p>Show warranty.</p>
 </blockquote>
+<p><strong>faq</strong></p>
+<blockquote>
+<p>Show NBFC FAQ manual page.</p>
+</blockquote>
 <p><strong>help</strong></p>
 <blockquote>
 <p>Show help.</p>
 </blockquote>
-<h1>FILES</h1>
+<h1 id="files">FILES</h1>
 <p><em>/etc/nbfc/nbfc.json</em></p>
 <blockquote>
 <p>The main configuration file for nbfc_service. See
@@ -286,7 +436,7 @@ directory take precedence over those in
 <blockquote>
 <p>State file of nbfc_service. This holds the current fan speeds.</p>
 </blockquote>
-<h1>EXIT STATUS</h1>
+<h1 id="exit-status">EXIT STATUS</h1>
 <blockquote>
 <ol start="0" type="1">
 <li><p>Everything fine</p></li>
@@ -296,11 +446,11 @@ directory take precedence over those in
 <li><p>Fatal error (memory allocation failure)</p></li>
 </ol>
 </blockquote>
-<h1>BUGS</h1>
+<h1 id="bugs">BUGS</h1>
 <p>Report bugs to https://github.com/nbfc-linux/nbfc-linux</p>
-<h1>AUTHOR</h1>
+<h1 id="author">AUTHOR</h1>
 <p>Benjamin Abendroth (braph93@gmx.de)</p>
-<h1>SEE ALSO</h1>
+<h1 id="see-also">SEE ALSO</h1>
 <p><strong>nbfc_service</strong>(1),
 <strong>nbfc_service.json</strong>(5), <strong>ec_probe</strong>(1),
 <strong>fancontrol</strong>(1)</p>

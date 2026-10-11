@@ -10,8 +10,8 @@
 #include "../memory.h"
 #include "../nxjson_utils.h"
 #include "../file_utils.h"
-#include "dmi.h"
-#include "str_functions.h"
+#include "../str_functions.h"
+#include "../dmi.h"
 
 // Find a ConfigFile by config_name (case-sensitive)
 ConfigFile* ConfigFiles_Find(array_of(ConfigFile)* files, const char* name) {
@@ -23,10 +23,10 @@ ConfigFile* ConfigFiles_Find(array_of(ConfigFile)* files, const char* name) {
   return NULL;
 }
 
-// Find a ConfigFile by config_name (case-insensitive)
-ConfigFile* ConfigFiles_FindIgnoreCase(array_of(ConfigFile)* files, const char* name) {
+// Find a ConfigFile by config_name (loose matching)
+ConfigFile* ConfigFiles_FindLoose(array_of(ConfigFile)* files, const char* name) {
   for_each_array(ConfigFile*, file, *files) {
-    if (! str_cmp_ignorecase(file->config_name, name))
+    if (DMI_ModelNameEquals(file->config_name, name))
       return file;
   }
 
@@ -41,23 +41,23 @@ void ConfigFiles_Free(array_of(ConfigFile)* files) {
 }
 
 // Compare function for qsort
-int ConfigFile_CompareByName(const void *a, const void *b) {
-  return strcmp(((struct ConfigFile *)a)->config_name, ((struct ConfigFile *)b)->config_name);
+int ConfigFile_CompareByName(const void* a, const void* b) {
+  return strcmp(((struct ConfigFile*) a)->config_name, ((struct ConfigFile*) b)->config_name);
 }
 
 // Compare function for qsort
-int ConfigFile_CompareByDiff(const void *a, const void *b) {
-  return (((struct ConfigFile *)b)->diff > ((struct ConfigFile *)a)->diff)
-       - (((struct ConfigFile *)b)->diff < ((struct ConfigFile *)a)->diff);
+int ConfigFile_CompareByDiff(const void* a, const void* b) {
+  return (((struct ConfigFile*) b)->diff > ((struct ConfigFile*) a)->diff)
+       - (((struct ConfigFile*) b)->diff < ((struct ConfigFile*) a)->diff);
 }
 
 // Return an array of ConfigFile for each file in `path`
 static array_of(ConfigFile) List_Configs_In_Directory(const char* path) {
   array_size_t capacity = 512;
-  array_of(ConfigFile) files = {
-    .data = Mem_Calloc(capacity, sizeof(ConfigFile)),
-    .size = 0
-  };
+  array_of(ConfigFile) files;
+
+  files.size = 0;
+  array_calloc(ConfigFile, files, capacity);
 
   DIR* directory = opendir(path);
   if (!directory) {
@@ -77,7 +77,7 @@ static array_of(ConfigFile) List_Configs_In_Directory(const char* path) {
 
     if (files.size == capacity) {
       capacity *= 2;
-      files.data = Mem_Realloc(files.data, capacity * sizeof(ConfigFile));
+      array_realloc(ConfigFile, files, capacity);
     }
 
     files.data[files.size++].config_name = Mem_Strdup(file->d_name);
@@ -91,8 +91,8 @@ static array_of(ConfigFile) List_Configs_In_Directory(const char* path) {
 // removing duplicates based on `config_name`.
 static array_of(ConfigFile) Merge_Configs(array_of(ConfigFile)* a, array_of(ConfigFile)* b) {
   array_of(ConfigFile) files;
-  files.data = Mem_Calloc((a->size + b->size), sizeof(ConfigFile));
   files.size = 0;
+  array_calloc(ConfigFile, files, (a->size + b->size));
 
   for_each_array(ConfigFile*, file, *a) {
     files.data[files.size++].config_name = Mem_Strdup(file->config_name);
@@ -114,7 +114,7 @@ array_of(ConfigFile) List_All_Configs(void) {
 
   a = List_Configs_In_Directory(NBFC_MODEL_CONFIGS_DIR);
 
-  if (file_exists(NBFC_MODEL_CONFIGS_DIR_MUTABLE))
+  if (File_Exists(NBFC_MODEL_CONFIGS_DIR_MUTABLE))
     b = List_Configs_In_Directory(NBFC_MODEL_CONFIGS_DIR_MUTABLE);
   else
     return a;
@@ -125,20 +125,70 @@ array_of(ConfigFile) List_All_Configs(void) {
   return c;
 }
 
+/*
+ * Fill an array (`out`) with all non-empty lines found in `file`.
+ */
+Error ConfigFiles_FromFile(array_of(ConfigFile)* out, const char* file) {
+  char* content;
+  FileResult res;
+
+  out->size = 0;
+  out->data = NULL;
+
+  // Read the file
+  res = File_ReadDynamic(&content, file);
+  if (! res.ok)
+    return err_stdlib(NULL);
+
+  // Allocate space
+  array_calloc(ConfigFile, *out, (str_count_newlines(content) + 2));
+
+  // Populate files array with lines
+  char* line = content;
+  for (char* p = content; *p; ++p) {
+    if (*p == '\n') {
+      *p = '\0';
+
+      if (strlen(line))
+        out->data[out->size++].config_name = Mem_Strdup(line);
+
+      line = p + 1;
+    }
+  }
+
+  if (strlen(line))
+    out->data[out->size++].config_name = Mem_Strdup(line);
+
+  Mem_Free(content);
+  return err_success();
+}
+
 // List all configs (in the static config directory as well as in the mutable config directory).
 // The `diff` field of the ConfigFile structure will also be set.
 array_of(ConfigFile) List_Recommended_Configs(void) {
-  const char* model_name = DMI_Get_Model_Name();
-  array_of(ConfigFile) files = List_All_Configs();
-  for_each_array(ConfigFile*, file, files) {
-    file->diff = str_similarity(model_name, file->config_name);
+  Error e;
+  char model_name[DMI_MAX_MODEL_NAME_LEN];
+
+  e = DMI_GetModelName(model_name, sizeof(model_name));
+  if (e) {
+    Log_Error("%s", err_print_all(e));
+    exit(NBFC_EXIT_FAILURE);
   }
+
+  array_of(ConfigFile) files = List_All_Configs();
+
+  for_each_array(ConfigFile*, file, files) {
+    char* config_name = DMI_ReplaceVendorAlias(file->config_name);
+    file->diff = str_similarity(model_name, config_name);
+    Mem_Free(config_name);
+  }
+
   qsort(files.data, files.size, sizeof(struct ConfigFile), ConfigFile_CompareByDiff);
   return files;
 }
 
 /*
- * Retrive the supported config for `model_name`.
+ * Retrieve the supported config for `model_name`.
  *
  * This function searches a model support database (a JSON file) for the
  * given `model_name` and returns the compatible output config for it.
@@ -181,7 +231,7 @@ char* Get_Supported_Config_From_SupportFile(const char* support_file, array_of(C
     if (model->type != NX_JSON_STRING) {
       Log_Warn("%s: Invalid value for model \"%s\": Not a string", support_file, model->key);
     }
-    else if (!str_cmp_ignorecase(model->key, model_name)) {
+    else if (DMI_ModelNameEquals(model->key, model_name)) {
       if (config) {
         Log_Warn("%s: Duplicate model key: \"%s\"", support_file, model->key);
       }
@@ -195,8 +245,9 @@ end:
   if (config) {
     // Ensure that the model actually exists
     for_each_array(ConfigFile*, file, *config_files) {
-      if (!str_cmp_ignorecase(file->config_name, config)) {
-        return config;
+      if (DMI_ModelNameEquals(file->config_name, config)) {
+        Mem_Free(config);
+        return Mem_Strdup(file->config_name);
       }
     }
 
@@ -208,7 +259,7 @@ end:
   else {
     // Not found in support database, try a direct match on `config_files`
     for_each_array(ConfigFile*, file, *config_files) {
-      if (!str_cmp_ignorecase(file->config_name, model_name)) {
+      if (DMI_ModelNameEquals(file->config_name, model_name)) {
         return Mem_Strdup(file->config_name);
       }
     }
@@ -220,7 +271,7 @@ end:
 char* Get_Supported_Config(array_of(ConfigFile)* files, const char* model) {
   char* config = NULL;
 
-  if (file_exists(NBFC_MODEL_SUPPORT_FILE_MUTABLE))
+  if (File_Exists(NBFC_MODEL_SUPPORT_FILE_MUTABLE))
     config = Get_Supported_Config_From_SupportFile(NBFC_MODEL_SUPPORT_FILE_MUTABLE, files, model);
 
   if (! config)
