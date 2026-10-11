@@ -6,9 +6,10 @@
 #include <stdbool.h>
 
 enum Nvidia_Error {
-  Nvidia_Error_OK     = 0,
-  Nvidia_Error_DlOpen = -1,
-  Nvidia_Error_API    = -2
+  Nvidia_Error_OK              = 0,
+  Nvidia_Error_DlOpen          = -1,
+  Nvidia_Error_API             = -2,
+  Nvidia_Error_DriverNotLoaded = -3
 };
 typedef enum Nvidia_Error Nvidia_Error;
 

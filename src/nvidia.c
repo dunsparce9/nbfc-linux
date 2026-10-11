@@ -63,7 +63,13 @@ Nvidia_Error Nvidia_Load(void) {
   return Nvidia_Error_OK;
 }
 
+static bool Nvidia_DriverLoaded(void) {
+  return File_Exists("/sys/module/nvidia") || File_Exists("/proc/driver/nvidia/version");
+}
+
 Nvidia_Error Nvidia_Init(void) {
+  if (! Nvidia_DriverLoaded())
+    return Nvidia_Error_DriverNotLoaded;
   Nvidia_Error e = Nvidia_Load();
   if (e)
     return e;
@@ -116,6 +122,8 @@ Error Nvidia_GetTemperature(const char* runtime_status_file, float* out) {
   e = Nvidia_Init();
   if (e == Nvidia_Error_DlOpen)
     return err_string("nvidia-ml: Failed to load NVML");
+  if (e == Nvidia_Error_DriverNotLoaded)
+    return err_string("nvidia-ml: NVIDIA driver is not loaded");
   if (e == Nvidia_Error_API)
     return err_string("nvidia-ml: Failed to initialize NVML");
 
